@@ -138,26 +138,29 @@ class _MyAppState extends State<MyApp> {
     );
 
     final timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      try {
-        final cookies = await webview.getAllCookies();
+      // try {
+      //   final cookies = await webview.getAllCookies();
 
-        if (cookies.isEmpty) {
-          debugPrint('⚠️ no cookies found');
-        }
+      //   if (cookies.isEmpty) {
+      //     debugPrint('⚠️ no cookies found');
+      //   }
 
-        for (final cookie in cookies) {
-          debugPrint('cookie: ${cookie.toJson()}');
-        }
-      } catch (e, stack) {
-        debugPrint('getAllCookies error: $e');
-        debugPrintStack(stackTrace: stack);
-      }
+      //   for (final cookie in cookies) {
+      //     debugPrint('cookie: ${cookie.toJson()}');
+      //   }
+      // } catch (e, stack) {
+      //   debugPrint('getAllCookies error: $e');
+      //   debugPrintStack(stackTrace: stack);
+      // }
     });
 
     webview
       ..setBrightness(Brightness.dark)
       ..setApplicationNameForUserAgent(" WebviewExample/1.0.0")
       ..launch(_controller.text)
+      ..addOnWebMessageReceivedCallback((message) {
+        print('Hello World:  $message');
+      })
       ..setOnUrlRequestCallback((url) {
         debugPrint('url: $url');
         final uri = Uri.parse(url);
@@ -187,6 +190,7 @@ class _MyAppState extends State<MyApp> {
 const _javaScriptToEval = [
   """
   function test() {
+    window.webkit.messageHandlers.msgToNative.postMessage("The one");
     return;
   }
   test();

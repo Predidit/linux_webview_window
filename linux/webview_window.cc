@@ -13,6 +13,17 @@
 #define WEBKIT_OLD_USED
 #endif
 
+void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data) {
+  JSCValue *value = webkit_javascript_result_get_js_value(js_result);
+  if (jsc_value_is_string(value)) {
+      char *message = jsc_value_to_string(value);
+      g_print("Received message: %s\n", message);
+      g_free(message);
+  } else {
+      g_print("Received non-string message\n");
+  }
+}
+
 void get_cookies_callback(WebKitCookieManager *manager, GAsyncResult *res,
                           gpointer user_data) {
   CookieData *data = (CookieData *)user_data;
@@ -154,6 +165,12 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                    G_CALLBACK(on_load_changed), this);
   g_signal_connect(G_OBJECT(webview_), "decide-policy",
                    G_CALLBACK(decide_policy_cb), this);
+
+  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
+  auto *manager = webkit_web_view_get_user_content_manager (WEBKIT_WEB_VIEW(webview_));
+  g_signal_connect (manager, "script-message-received::msgToNative",
+                  G_CALLBACK (handle_script_message), NULL);
+  webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
 
   auto settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(webview_));
   webkit_settings_set_javascript_can_open_windows_automatically(settings, true);

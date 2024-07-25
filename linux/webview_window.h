@@ -8,6 +8,7 @@
 #include <flutter_linux/flutter_linux.h>
 #include <gtk/gtk.h>
 #include <libsoup/soup.h>
+#include <glib.h>
 #include <webkit2/webkit2.h>
 
 #include <functional>
@@ -17,6 +18,8 @@ typedef struct {
     GMainLoop *loop;
     GList *cookies;
 } CookieData;
+
+void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data);
 
 void get_cookies_callback(WebKitCookieManager *manager, GAsyncResult *res,
                           gpointer user_data);
