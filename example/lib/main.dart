@@ -24,7 +24,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final TextEditingController _controller = TextEditingController(
-    text: 'https://example.com',
+    text: 'https://baidu.com',
   );
 
   bool? _webviewAvailable;
@@ -168,7 +168,6 @@ class _MyAppState extends State<MyApp> {
         // grant navigation request
         return true;
       })
-      ..openDevToolsWindow()
       ..onClose.whenComplete(() {
         debugPrint("on close");
         timer.cancel();
