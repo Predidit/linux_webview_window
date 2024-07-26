@@ -36,7 +36,6 @@ void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptRe
   } else {
       g_print("Received non-string message\n");
   }
-  jsc_value_unref(value);
 }
 
 void get_cookies_callback(WebKitCookieManager *manager, GAsyncResult *res,
