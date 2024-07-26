@@ -13,15 +13,30 @@
 #define WEBKIT_OLD_USED
 #endif
 
+struct UserData {
+    int64_t window_id;
+    FlMethodChannel* method_channel_;
+};
+
 void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data) {
   JSCValue *value = webkit_javascript_result_get_js_value(js_result);
   if (jsc_value_is_string(value)) {
       char *message = jsc_value_to_string(value);
-      g_print("Received message: %s\n", message);
+      auto *args = fl_value_new_map();
+      UserData* r_user_data = static_cast<UserData*>(user_data);
+      int64_t window_id = r_user_data->window_id;
+      FlMethodChannel* method_channel_ = r_user_data->method_channel_;
+      fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
+      fl_value_set(args, fl_value_new_string("message"), fl_value_new_string(message));
+      fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
+                                      "onJavascriptWebMessageReceived", args, nullptr,
+                                      nullptr, nullptr);
+      fl_value_unref(args);
       g_free(message);
   } else {
       g_print("Received non-string message\n");
   }
+  jsc_value_unref(value);
 }
 
 void get_cookies_callback(WebKitCookieManager *manager, GAsyncResult *res,
@@ -167,9 +182,10 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                    G_CALLBACK(decide_policy_cb), this);
 
   // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
+  UserData* user_data = new UserData{window_id, method_channel_};
   auto *manager = webkit_web_view_get_user_content_manager (WEBKIT_WEB_VIEW(webview_));
   g_signal_connect (manager, "script-message-received::msgToNative",
-                  G_CALLBACK (handle_script_message), NULL);
+                  G_CALLBACK (handle_script_message), user_data);
   webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
 
   auto settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(webview_));
