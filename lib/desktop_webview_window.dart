@@ -210,14 +210,14 @@ class WebviewTexture extends StatefulWidget {
   const WebviewTexture({super.key});
 
   @override
-  State<WebviewTexture> createState() => _WebviewTextureState(); 
+  State<WebviewTexture> createState() => _WebviewTextureState();
 }
 
 class _WebviewTextureState extends State<WebviewTexture> {
   final _textureRgbaRendererPlugin = TextureRgbaRenderer(); // 创建纹理渲染插件实例
   int textureId = -1; // 初始化纹理 ID
-  int height = 768; // 初始化高度
-  int width = 1377; // 初始化宽度
+  int height = 400; // 初始化高度
+  int width = 400; // 初始化宽度
   int cnt = 0; // 初始化计数器
   var key = 0; // 初始化键值
   int texturePtr = 0; // 初始化纹理指针
@@ -254,12 +254,14 @@ class _WebviewTextureState extends State<WebviewTexture> {
   void start(int methodId) {
     debugPrint("start mockPic");
     method = methodId; // 设置方法 ID
-    final rowBytes = (width * 4 + strideAlign - 1) & (~(strideAlign - 1)); // 计算每行字节数
+    final rowBytes =
+        (width * 4 + strideAlign - 1) & (~(strideAlign - 1)); // 计算每行字节数
     final picDataLength = rowBytes * height; // 计算图片数据长度
     debugPrint('REMOVE ME =============================== rowBytes $rowBytes');
     _timer?.cancel(); // 取消之前的定时器
     // 60 fps
-    _timer = Timer.periodic(const Duration(milliseconds: 1000 ~/ 60), (timer) async {
+    _timer =
+        Timer.periodic(const Duration(milliseconds: 1000 ~/ 60), (timer) async {
       if (methodId == 0) {
         // 方法1：使用 MethodChannel
         data = mockPicture(width, height, rowBytes, picDataLength); // 生成模拟图片数据
@@ -274,7 +276,8 @@ class _WebviewTextureState extends State<WebviewTexture> {
           debugPrint("WARN: render failed"); // 渲染失败警告
         }
       } else {
-        final dataPtr = mockPicturePtr(width, height, rowBytes, picDataLength); // 生成模拟图片指针
+        final dataPtr =
+            mockPicturePtr(width, height, rowBytes, picDataLength); // 生成模拟图片指针
         // 方法2：使用本地 FFI
         final t1 = DateTime.now().microsecondsSinceEpoch; // 获取当前时间戳
         Native.instance.onRgba(Pointer.fromAddress(texturePtr).cast<Void>(),
@@ -331,14 +334,17 @@ class _WebviewTextureState extends State<WebviewTexture> {
     return Uint8List.fromList(pic); // 返回无符号字节列表
   }
 
-  Pointer<Uint8> mockPicturePtr(int width, int height, int rowBytes, int length) {
+  Pointer<Uint8> mockPicturePtr(
+      int width, int height, int rowBytes, int length) {
     // 生成模拟图片指针
     final pic = List.generate(length, (index) {
       final r = index / rowBytes; // 计算行
       final c = (index % rowBytes) / 4; // 计算列
       final p = index & 0x03; // 计算像素位置
-      final edgeH = (c >= 0 && c < 10) || ((c >= width - 10) && c < width); // 判断水平边缘
-      final edgeW = (r >= 0 && r < 10) || ((r >= height - 10) && r < height); // 判断垂直边缘
+      final edgeH =
+          (c >= 0 && c < 10) || ((c >= width - 10) && c < width); // 判断水平边缘
+      final edgeW =
+          (r >= 0 && r < 10) || ((r >= height - 10) && r < height); // 判断垂直边缘
       if (edgeH || edgeW) {
         if (p == 0 || p == 3) {
           return 255; // 设置红色和透明通道
@@ -356,41 +362,40 @@ class _WebviewTextureState extends State<WebviewTexture> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: textureId == -1
-                  ? const Offstage() // 如果纹理 ID 为 -1，则隐藏
-                  : Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Container(
-                          alignment: Alignment.center,
-                          decoration: const BoxDecoration(color: Colors.blue), // 设置背景颜色
-                          child: Texture(textureId: textureId)), // 显示纹理
-                    ),
-            ),
-            Text(
-                "texture id: $textureId, texture memory address: ${texturePtr.toRadixString(16)}"), // 显示纹理 ID 和内存地址
-            TextButton.icon(
-              label: const Text("play with texture (method channel API)"),
-              icon: const Icon(Icons.play_arrow),
-              onPressed: () => start(0), // 使用方法通道 API 播放纹理
-            ),
-            TextButton.icon(
-              label: const Text("play with texture (native API, faster)"),
-              icon: const Icon(Icons.play_arrow),
-              onPressed: () => start(1), // 使用本地 API 播放纹理
-            ),
-            Text(
-                "Current mode: ${method == 0 ? 'Method Channel API' : 'Native API'}"), // 显示当前模式
-            time != 0 ? Text("FPS: ${1000000 ~/ time} fps") : const Offstage() // 显示 FPS
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Expanded(
+          child: textureId == -1
+              ? const Offstage() // 如果纹理 ID 为 -1，则隐藏
+              : Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Container(
+                      alignment: Alignment.center,
+                      decoration:
+                          const BoxDecoration(color: Colors.blue), // 设置背景颜色
+                      child: Texture(textureId: textureId)), // 显示纹理
+                ),
         ),
-      ),
+        Text(
+            "texture id: $textureId, texture memory address: ${texturePtr.toRadixString(16)}"), // 显示纹理 ID 和内存地址
+        TextButton.icon(
+          label: const Text("play with texture (method channel API)"),
+          icon: const Icon(Icons.play_arrow),
+          onPressed: () => start(0), // 使用方法通道 API 播放纹理
+        ),
+        TextButton.icon(
+          label: const Text("play with texture (native API, faster)"),
+          icon: const Icon(Icons.play_arrow),
+          onPressed: () => start(1), // 使用本地 API 播放纹理
+        ),
+        Text(
+            "Current mode: ${method == 0 ? 'Method Channel API' : 'Native API'}"), // 显示当前模式
+        time != 0
+            ? Text("FPS: ${1000000 ~/ time} fps")
+            : const Offstage() // 显示 FPS
+      ],
     );
   }
 }
