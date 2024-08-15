@@ -295,6 +295,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.2"
+  texture_rgba_renderer:
+    dependency: transitive
+    description:
+      name: texture_rgba_renderer
+      sha256: cb048abdd800468ca40749ca10d1db9d1e6a055d1cde6234c05191293f0c7d61
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.16"
   vector_math:
     dependency: transitive
     description:

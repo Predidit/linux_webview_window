@@ -214,6 +214,7 @@ class WebviewTexture extends StatefulWidget {
 }
 
 class _WebviewTextureState extends State<WebviewTexture> {
+  static const MethodChannel  _renderMethodChannel = MethodChannel('webview_render');
   final _textureRgbaRendererPlugin = TextureRgbaRenderer(); // 创建纹理渲染插件实例
   int textureId = -1; // 初始化纹理 ID
   int height = 400; // 初始化高度
@@ -231,6 +232,9 @@ class _WebviewTextureState extends State<WebviewTexture> {
   @override
   void initState() {
     super.initState();
+    _renderMethodChannel.setMethodCallHandler((call) async{
+     updateTexture(1, call.arguments['rgbaData']);
+    });
     // 创建纹理并获取纹理 ID
     _textureRgbaRendererPlugin.createTexture(key).then((textureId) {
       if (textureId != -1) {
@@ -251,7 +255,7 @@ class _WebviewTextureState extends State<WebviewTexture> {
     });
   }
 
-  void start(int methodId) {
+  void updateTexture(int methodId, Pointer<Uint8> rgbaDataPtr) {
     debugPrint("start mockPic");
     method = methodId; // 设置方法 ID
     final rowBytes =
@@ -276,17 +280,20 @@ class _WebviewTextureState extends State<WebviewTexture> {
           debugPrint("WARN: render failed"); // 渲染失败警告
         }
       } else {
-        final dataPtr =
+        if (rgbaDataPtr == nullptr) {
+          rgbaDataPtr =
             mockPicturePtr(width, height, rowBytes, picDataLength); // 生成模拟图片指针
+        }
         // 方法2：使用本地 FFI
         final t1 = DateTime.now().microsecondsSinceEpoch; // 获取当前时间戳
         Native.instance.onRgba(Pointer.fromAddress(texturePtr).cast<Void>(),
-            dataPtr, picDataLength, width, height, strideAlign); // 通过本地代码渲染图片
+            rgbaDataPtr, picDataLength, width, height, strideAlign); // 通过本地代码渲染图片
         final t2 = DateTime.now().microsecondsSinceEpoch; // 获取当前时间戳
         setState(() {
           time = t2 - t1; // 计算渲染时间
         });
-        malloc.free(dataPtr); // 释放内存
+        // Can't be released here, waiting for dispose.
+        // malloc.free(rgbaDataPtr); // 释放内存
       }
     });
   }
@@ -383,12 +390,12 @@ class _WebviewTextureState extends State<WebviewTexture> {
         TextButton.icon(
           label: const Text("play with texture (method channel API)"),
           icon: const Icon(Icons.play_arrow),
-          onPressed: () => start(0), // 使用方法通道 API 播放纹理
+          onPressed: () => updateTexture(0, nullptr), // 使用方法通道 API 播放纹理
         ),
         TextButton.icon(
           label: const Text("play with texture (native API, faster)"),
           icon: const Icon(Icons.play_arrow),
-          onPressed: () => start(1), // 使用本地 API 播放纹理
+          onPressed: () => updateTexture(1, nullptr), // 使用本地 API 播放纹理
         ),
         Text(
             "Current mode: ${method == 0 ? 'Method Channel API' : 'Native API'}"), // 显示当前模式

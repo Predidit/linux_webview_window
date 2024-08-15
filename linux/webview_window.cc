@@ -5,6 +5,10 @@
 #include "webview_window.h"
 
 #include <utility>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <iostream>
 
 #include "message_channel_plugin.h"
 
@@ -17,6 +21,64 @@ struct UserData {
     int64_t window_id;
     FlMethodChannel* method_channel_;
 };
+
+typedef struct {
+  GtkWidget *widget;
+  void (*callback)(guchar *rgba_data, int width,  int height, gpointer data);
+  gpointer user_data;
+} RenderThreadData;
+
+pthread_t webview_render_loop_thread;
+GMainLoop *webview_render_loop;
+
+guchar* render_widget_to_rgba(GtkWidget *widget, int* width, int* height) {
+  GdkWindow *window = gtk_widget_get_window(widget);
+
+  *width = gtk_widget_get_allocated_width(widget);
+  *height = gtk_widget_get_allocated_height(widget);
+
+  GdkPixbuf *pixbuf = gdk_pixbuf_get_from_window(window, 0, 0, *width, *height);
+
+  if (!pixbuf) {
+    g_print("Failed to get pixbuf from window\n");
+    return NULL;
+  }
+
+  guchar *rgba_data = gdk_pixbuf_get_pixels(pixbuf);
+
+  return rgba_data;
+}
+
+gboolean render_in_main_thread(gpointer data) {
+  RenderThreadData *render_thread_data = (RenderThreadData*) data;
+  int width, height;
+
+  guchar *rgba_data = render_widget_to_rgba(render_thread_data->widget, &width, &height);
+
+  if (render_thread_data->callback) {
+    render_thread_data->callback(rgba_data, width, height, render_thread_data->user_data);
+  }
+
+  return TRUE;
+}
+
+void webview_render_callback(guchar *rgba_data, int width, int height, gpointer user_data) {
+  g_print("render thread is running\n");
+  if (rgba_data) {
+    for (int i=0; i< 4* 4; i++) {
+      g_print("%02x ", rgba_data[i]);
+    }
+    g_print("\n");
+  }
+}
+
+void* webview_render_func(void* data) {
+  RenderThreadData *render_thread_data = (RenderThreadData*)data;
+
+  g_main_context_invoke(NULL, render_in_main_thread, render_thread_data);
+
+  return NULL;
+}
 
 void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data) {
   JSCValue *value = webkit_javascript_result_get_js_value(js_result);
@@ -195,6 +257,19 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   // disable gtk window to get a headless webview
   // gtk_widget_show_all(GTK_WIDGET(window_));
   // gtk_widget_grab_focus(GTK_WIDGET(webview_));
+  g_print("start assert debug\n");
+  g_assert(GTK_IS_WIDGET(GTK_WIDGET(webview_)));
+  g_print("assert done\n");
+  
+  RenderThreadData render_thread_data = {
+    .widget = GTK_WIDGET(webview_),
+    .callback = webview_render_callback,
+    .user_data = NULL
+  };
+
+  pthread_t render_thread;
+  pthread_create(&render_thread, NULL, webview_render_func, &render_thread_data);
+  g_print("pthread create success\n");
 
   // FROM: https://github.com/leanflutter/window_manager/pull/343
   // Disconnect all delete-event handlers first in flutter 3.10.1, which causes
