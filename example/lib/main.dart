@@ -105,10 +105,6 @@ class _MyAppState extends State<MyApp> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(
-                  height: 400,
-                  child: WebviewTexture(),
-                ),
                 TextField(controller: _controller),
                 const SizedBox(height: 16),
                 TextButton(
