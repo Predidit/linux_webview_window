@@ -83,20 +83,13 @@ GList *get_cookies_sync(WebKitWebView *web_view) {
 
 namespace {
 
+// Ingore all cerficate error
 gboolean on_load_failed_with_tls_errors(WebKitWebView *web_view,
                                         char *failing_uri,
                                         GTlsCertificate *certificate,
                                         GTlsCertificateFlags errors,
                                         gpointer user_data) {
-  auto *webview = static_cast<WebviewWindow *>(user_data);
-  g_critical("on_load_failed_with_tls_errors: %s %p error= %d", failing_uri,
-             webview, errors);
-  // TODO allow certificate for some certificate ?
-  // maybe we can use the pem from
-  // https://source.chromium.org/chromium/chromium/src/+/master:net/data/ssl/ev_roots/
-  //  webkit_web_context_allow_tls_certificate_for_host(webkit_web_view_get_context(web_view),
-  //  certificate, uri->host); webkit_web_view_load_uri(web_view, failing_uri);
-  return false;
+  return TRUE;
 }
 
 GtkWidget *on_create(WebKitWebView *web_view,
