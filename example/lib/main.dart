@@ -134,6 +134,10 @@ class _MyAppState extends State<MyApp> {
       configuration: CreateConfiguration(
         userDataFolderWindows: await _getWebViewPath(),
         titleBarTopPadding: Platform.isMacOS ? 20 : 0,
+        // proxy: ProxyConfiguration(
+        //   host: '10.10.10.1',
+        //   port: 7890,
+        // ),
       ),
     );
 

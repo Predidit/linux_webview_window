@@ -13,9 +13,6 @@ if (NOT WebKit_FOUND)
 endif ()
 
 pkg_check_modules(LibSoup REQUIRED IMPORTED_TARGET libsoup-3.0)
-if (NOT LibSoup_FOUND)
-  pkg_check_modules(LibSoup REQUIRED IMPORTED_TARGET libsoup-2.4)
-endif()
 
 
 add_library(${PLUGIN_NAME} SHARED

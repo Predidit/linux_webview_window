@@ -31,7 +31,7 @@ class WebviewWindow {
   WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                 std::function<void()> on_close_callback,
                 const std::string &title, int width, int height,
-                int title_bar_height);
+                int title_bar_height, const char* proxy_url);
 
   virtual ~WebviewWindow();
 

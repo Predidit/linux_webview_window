@@ -48,6 +48,14 @@ static void webview_window_plugin_handle_method_call(
     auto title_bar_height =
         fl_value_get_int(fl_value_lookup_string(args, "titleBarHeight"));
 
+    auto proxy_args = fl_value_lookup_string(args, "proxy");
+    char *proxy_url = nullptr;
+    if (proxy_args != nullptr && fl_value_get_type(proxy_args) == FL_VALUE_TYPE_MAP) {
+      auto host = fl_value_get_string(fl_value_lookup_string(proxy_args, "host"));
+      auto port = fl_value_get_int(fl_value_lookup_string(proxy_args, "port"));
+      proxy_url = g_strdup_printf("http://%s:%ld", host, port);
+    }
+
     auto window_id = next_window_id_;
     g_object_ref(self);
     auto webview = std::make_unique<WebviewWindow>(
@@ -56,7 +64,10 @@ static void webview_window_plugin_handle_method_call(
           self->windows->erase(window_id);
           g_object_unref(self);
         },
-        title, width, height, title_bar_height);
+        title, width, height, title_bar_height, proxy_url);
+    if (proxy_url) {
+      g_free(proxy_url);
+    }
     self->windows->insert({window_id, std::move(webview)});
     next_window_id_++;
     fl_method_call_respond_success(method_call, fl_value_new_int(window_id),
