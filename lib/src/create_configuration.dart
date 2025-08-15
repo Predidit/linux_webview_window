@@ -1,21 +1,6 @@
 import 'dart:io';
 
-class ProxyConfiguration {
-  final String host;
-  final int port;
-
-  ProxyConfiguration({
-    required this.host,
-    required this.port,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'host': host,
-      'port': port,
-    };
-  }
-}
+import 'package:desktop_webview_window/src/user_script.dart';
 
 class CreateConfiguration {
   final int windowWidth;
@@ -37,7 +22,7 @@ class CreateConfiguration {
   final bool useWindowPositionAndSize;
   final bool openMaximized;
 
-  final ProxyConfiguration? proxy;
+  final List<UserScript> userScripts;
 
   const CreateConfiguration({
     this.windowWidth = 1280,
@@ -50,7 +35,7 @@ class CreateConfiguration {
     this.userDataFolderWindows = 'webview_window_WebView2',
     this.useWindowPositionAndSize = false,
     this.openMaximized = false,
-    this.proxy,
+    this.userScripts = const [],
   });
 
   factory CreateConfiguration.platform() {
@@ -70,6 +55,6 @@ class CreateConfiguration {
         "userDataFolderWindows": userDataFolderWindows,
         "useWindowPositionAndSize": useWindowPositionAndSize,
         "openMaximized": openMaximized,
-        "proxy": proxy?.toMap(),
+        "userScripts": userScripts.map((e) => e.toMap()).toList(),
       };
 }

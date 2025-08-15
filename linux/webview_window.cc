@@ -5,7 +5,6 @@
 #include "webview_window.h"
 
 #include <utility>
-#include <iostream>
 
 #include "message_channel_plugin.h"
 
@@ -114,11 +113,11 @@ gboolean decide_policy_cb(WebKitWebView *web_view,
 
 }  // namespace
 
-
 WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                              std::function<void()> on_close_callback,
                              const std::string &title, int width, int height,
-                             int title_bar_height, const char* proxy_url)
+                             int title_bar_height,
+                             const std::vector<UserScript> &user_scripts)
     : method_channel_(method_channel),
       window_id_(window_id),
       on_close_callback_(std::move(on_close_callback)),
@@ -166,20 +165,27 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   gtk_box_pack_start(box_, GTK_WIDGET(title_bar), FALSE, FALSE, 0);
 
   // initial web_view
-  auto *context = webkit_web_context_get_default();
-  auto *data_manager = webkit_web_context_get_website_data_manager(context);
-  if (proxy_url != nullptr) {
-    auto *proxy_settings = webkit_network_proxy_settings_new(proxy_url, nullptr);
-    webkit_website_data_manager_set_network_proxy_settings(
-        data_manager, WEBKIT_NETWORK_PROXY_MODE_CUSTOM,
-        proxy_settings);
-  } else {
-    webkit_website_data_manager_set_network_proxy_settings(
-        data_manager, WEBKIT_NETWORK_PROXY_MODE_DEFAULT,
-        nullptr);
+  auto *manager = webkit_user_content_manager_new();
+  for (const auto &script : user_scripts) {
+    webkit_user_content_manager_add_script(
+        manager, webkit_user_script_new(
+                     script.source.c_str(),
+                     script.for_all_frames
+                         ? WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES
+                         : WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+                     script.injection_time == 0
+                         ? WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START
+                         : WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END,
+                     nullptr, nullptr));
   }
-  webview_ = webkit_web_view_new_with_context(context);
 
+  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
+  UserData* user_data = new UserData{window_id, method_channel_};
+  g_signal_connect (manager, "script-message-received::msgToNative",
+                  G_CALLBACK (handle_script_message), user_data);
+  webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
+
+  webview_ = webkit_web_view_new_with_user_content_manager(manager);
   g_signal_connect(G_OBJECT(webview_), "load-failed-with-tls-errors",
                    G_CALLBACK(on_load_failed_with_tls_errors), this);
   g_signal_connect(G_OBJECT(webview_), "create", G_CALLBACK(on_create), this);
@@ -188,21 +194,14 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   g_signal_connect(G_OBJECT(webview_), "decide-policy",
                    G_CALLBACK(decide_policy_cb), this);
 
-  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
-  UserData* user_data = new UserData{window_id, method_channel_};
-  auto *manager = webkit_web_view_get_user_content_manager (WEBKIT_WEB_VIEW(webview_));
-  g_signal_connect (manager, "script-message-received::msgToNative",
-                  G_CALLBACK (handle_script_message), user_data);
-  webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
-
   auto settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(webview_));
   webkit_settings_set_javascript_can_open_windows_automatically(settings, true);
   default_user_agent_ = webkit_settings_get_user_agent(settings);
   gtk_box_pack_end(box_, webview_, true, true, 0);
 
   // disable gtk window to get a headless webview
-  // gtk_widget_show_all(GTK_WIDGET(window_));
-  // gtk_widget_grab_focus(GTK_WIDGET(webview_));
+  gtk_widget_show_all(GTK_WIDGET(window_));
+  gtk_widget_grab_focus(GTK_WIDGET(webview_));
 
   // FROM: https://github.com/leanflutter/window_manager/pull/343
   // Disconnect all delete-event handlers first in flutter 3.10.1, which causes

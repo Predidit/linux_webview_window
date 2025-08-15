@@ -132,13 +132,18 @@ class _MyAppState extends State<MyApp> {
   void _onTap() async {
     final webview = await WebviewWindow.create(
       configuration: CreateConfiguration(
-        userDataFolderWindows: await _getWebViewPath(),
-        titleBarTopPadding: Platform.isMacOS ? 20 : 0,
-        // proxy: ProxyConfiguration(
-        //   host: '10.10.10.1',
-        //   port: 7890,
-        // ),
-      ),
+          userDataFolderWindows: await _getWebViewPath(),
+          titleBarTopPadding: Platform.isMacOS ? 20 : 0,
+          userScripts: [
+            UserScript(
+                source: _userScriptToEval[0],
+                injectionTime: UserScriptInjectionTime.documentStart)
+          ]
+          // proxy: ProxyConfiguration(
+          //   host: '10.10.10.1',
+          //   port: 7890,
+          // ),
+          ),
     );
 
     final timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
@@ -163,7 +168,7 @@ class _MyAppState extends State<MyApp> {
       ..setApplicationNameForUserAgent(" WebviewExample/1.0.0")
       ..launch(_controller.text)
       ..addOnWebMessageReceivedCallback((message) {
-        print('Hello World:  $message');
+        print('Received message from webview:  $message');
       })
       ..setOnUrlRequestCallback((url) {
         debugPrint('url: $url');
@@ -204,6 +209,16 @@ const _javaScriptToEval = [
   'undefined',
   '1.0 + 1.0',
   '"test"',
+];
+
+const _userScriptToEval = [
+  """
+  function test() {
+    window.webkit.messageHandlers.msgToNative.postMessage("Lucky Dog");
+    return;
+  }
+  test();
+  """,
 ];
 
 Future<String> _getWebViewPath() async {

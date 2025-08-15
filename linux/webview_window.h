@@ -13,11 +13,18 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 typedef struct {
     GMainLoop *loop;
     GList *cookies;
 } CookieData;
+
+struct UserScript {
+  std::string source;
+  int injection_time;
+  bool for_all_frames;
+};
 
 void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data);
 
@@ -31,7 +38,7 @@ class WebviewWindow {
   WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                 std::function<void()> on_close_callback,
                 const std::string &title, int width, int height,
-                int title_bar_height, const char* proxy_url);
+                int title_bar_height, const std::vector<UserScript>& user_scripts);
 
   virtual ~WebviewWindow();
 
