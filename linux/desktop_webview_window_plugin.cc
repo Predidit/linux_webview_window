@@ -74,7 +74,7 @@ static void webview_window_plugin_handle_method_call(
         if (fl_value_get_type(script_map) == FL_VALUE_TYPE_MAP) {
           auto source = fl_value_get_string(
               fl_value_lookup_string(script_map, "source"));
-          g_print("Native: %s\n", source);
+          // g_print("script: %s\n", source);
           auto injection_time = fl_value_get_int(
               fl_value_lookup_string(script_map, "injectionTime"));
           auto for_all_frames = fl_value_get_bool(

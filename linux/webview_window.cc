@@ -167,6 +167,8 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   // initial web_view
   auto *manager = webkit_user_content_manager_new();
   for (const auto &script : user_scripts) {
+    // g_print("checkpoint: inject time: %d\n", script.injection_time);
+    // g_print("checkPoint: inject all iframe: %d\n", script.for_all_frames);
     webkit_user_content_manager_add_script(
         manager, webkit_user_script_new(
                      script.source.c_str(),
