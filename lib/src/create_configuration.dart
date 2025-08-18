@@ -24,6 +24,8 @@ class CreateConfiguration {
 
   final List<UserScript> userScripts;
 
+  final bool headless;
+
   const CreateConfiguration({
     this.windowWidth = 1280,
     this.windowHeight = 720,
@@ -36,6 +38,7 @@ class CreateConfiguration {
     this.useWindowPositionAndSize = false,
     this.openMaximized = false,
     this.userScripts = const [],
+    this.headless = false,
   });
 
   factory CreateConfiguration.platform() {
@@ -56,5 +59,6 @@ class CreateConfiguration {
         "useWindowPositionAndSize": useWindowPositionAndSize,
         "openMaximized": openMaximized,
         "userScripts": userScripts.map((e) => e.toMap()).toList(),
+        "headless": headless,
       };
 }

@@ -27,6 +27,8 @@ class _MyAppState extends State<MyApp> {
     text: 'https://baidu.com',
   );
 
+  bool _headless = false;
+
   bool? _webviewAvailable;
 
   @override
@@ -57,6 +59,7 @@ class _MyAppState extends State<MyApp> {
               onPressed: () async {
                 final webview = await WebviewWindow.create(
                   configuration: CreateConfiguration(
+                    headless: _headless,
                     windowHeight: 1280,
                     windowWidth: 720,
                     title: "ExampleTestWindow",
@@ -79,19 +82,19 @@ class _MyAppState extends State<MyApp> {
                     return "";
                   })
                   ..addScriptToExecuteOnDocumentCreated("""
-  const mixinContext = {
-    platform: 'Desktop',
-    conversation_id: 'conversationId',
-    immersive: false,
-    app_version: '1.0.0',
-    appearance: 'dark',
-  }
-  window.MixinContext = {
-    getContext: function() {
-      return JSON.stringify(mixinContext)
-    }
-  }
-""")
+                    const mixinContext = {
+                      platform: 'Desktop',
+                      conversation_id: 'conversationId',
+                      immersive: false,
+                      app_version: '1.0.0',
+                      appearance: 'dark',
+                    }
+                    window.MixinContext = {
+                      getContext: function() {
+                        return JSON.stringify(mixinContext)
+                      }
+                    }
+                    """)
                   ..launch("http://localhost:3000/test.html");
               },
               icon: const Icon(Icons.bug_report),
@@ -107,6 +110,15 @@ class _MyAppState extends State<MyApp> {
               children: [
                 TextField(controller: _controller),
                 const SizedBox(height: 16),
+                SwitchListTile(
+                  title: const Text('Headless'),
+                  value: _headless,
+                  onChanged: (value) {
+                    setState(() {
+                      _headless = value;
+                    });
+                  },
+                ),
                 TextButton(
                   onPressed: _webviewAvailable != true ? null : _onTap,
                   child: const Text('Open'),
@@ -132,6 +144,7 @@ class _MyAppState extends State<MyApp> {
   void _onTap() async {
     final webview = await WebviewWindow.create(
       configuration: CreateConfiguration(
+          headless: _headless,
           userDataFolderWindows: await _getWebViewPath(),
           titleBarTopPadding: Platform.isMacOS ? 20 : 0,
           userScripts: [
@@ -139,10 +152,6 @@ class _MyAppState extends State<MyApp> {
                 source: _userScriptToEval[0],
                 injectionTime: UserScriptInjectionTime.documentStart)
           ]
-          // proxy: ProxyConfiguration(
-          //   host: '10.10.10.1',
-          //   port: 7890,
-          // ),
           ),
     );
 
@@ -197,13 +206,6 @@ class _MyAppState extends State<MyApp> {
 }
 
 const _javaScriptToEval = [
-  """
-  function test() {
-    window.webkit.messageHandlers.msgToNative.postMessage("The one");
-    return;
-  }
-  test();
-  """,
   'eval({"name": "test", "user_agent": navigator.userAgent})',
   '1 + 1',
   'undefined',
