@@ -116,7 +116,8 @@ gboolean decide_policy_cb(WebKitWebView *web_view,
 WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                              std::function<void()> on_close_callback,
                              const std::string &title, int width, int height,
-                             int title_bar_height)
+                             int title_bar_height,
+                             const std::vector<UserScript> &user_scripts)
     : method_channel_(method_channel),
       window_id_(window_id),
       on_close_callback_(std::move(on_close_callback)),
@@ -164,7 +165,29 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   gtk_box_pack_start(box_, GTK_WIDGET(title_bar), FALSE, FALSE, 0);
 
   // initial web_view
-  webview_ = webkit_web_view_new();
+  auto *manager = webkit_user_content_manager_new();
+  for (const auto &script : user_scripts) {
+    // g_print("checkpoint: inject time: %d\n", script.injection_time);
+    // g_print("checkPoint: inject all iframe: %d\n", script.for_all_frames);
+    webkit_user_content_manager_add_script(
+        manager, webkit_user_script_new(
+                     script.source.c_str(),
+                     script.for_all_frames
+                         ? WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES
+                         : WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+                     script.injection_time == 0
+                         ? WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START
+                         : WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_END,
+                     nullptr, nullptr));
+  }
+
+  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
+  UserData* user_data = new UserData{window_id, method_channel_};
+  g_signal_connect (manager, "script-message-received::msgToNative",
+                  G_CALLBACK (handle_script_message), user_data);
+  webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
+
+  webview_ = webkit_web_view_new_with_user_content_manager(manager);
   g_signal_connect(G_OBJECT(webview_), "load-failed-with-tls-errors",
                    G_CALLBACK(on_load_failed_with_tls_errors), this);
   g_signal_connect(G_OBJECT(webview_), "create", G_CALLBACK(on_create), this);
@@ -172,13 +195,6 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                    G_CALLBACK(on_load_changed), this);
   g_signal_connect(G_OBJECT(webview_), "decide-policy",
                    G_CALLBACK(decide_policy_cb), this);
-
-  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
-  UserData* user_data = new UserData{window_id, method_channel_};
-  auto *manager = webkit_web_view_get_user_content_manager (WEBKIT_WEB_VIEW(webview_));
-  g_signal_connect (manager, "script-message-received::msgToNative",
-                  G_CALLBACK (handle_script_message), user_data);
-  webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
 
   auto settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(webview_));
   webkit_settings_set_javascript_can_open_windows_automatically(settings, true);

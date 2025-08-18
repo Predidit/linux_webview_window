@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:desktop_webview_window/src/user_script.dart';
+
 class CreateConfiguration {
   final int windowWidth;
   final int windowHeight;
@@ -20,6 +22,8 @@ class CreateConfiguration {
   final bool useWindowPositionAndSize;
   final bool openMaximized;
 
+  final List<UserScript> userScripts;
+
   const CreateConfiguration({
     this.windowWidth = 1280,
     this.windowHeight = 720,
@@ -31,6 +35,7 @@ class CreateConfiguration {
     this.userDataFolderWindows = 'webview_window_WebView2',
     this.useWindowPositionAndSize = false,
     this.openMaximized = false,
+    this.userScripts = const [],
   });
 
   factory CreateConfiguration.platform() {
@@ -50,5 +55,6 @@ class CreateConfiguration {
         "userDataFolderWindows": userDataFolderWindows,
         "useWindowPositionAndSize": useWindowPositionAndSize,
         "openMaximized": openMaximized,
+        "userScripts": userScripts.map((e) => e.toMap()).toList(),
       };
 }

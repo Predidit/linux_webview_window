@@ -35,6 +35,19 @@ static void webview_window_plugin_handle_method_call(
   const gchar *method = fl_method_call_get_name(method_call);
 
   if (strcmp(method, "create") == 0) {
+
+    /// Menthod Channel test
+    // FlValue* args_value = fl_method_call_get_args(method_call);
+    // if (fl_value_get_type(args_value) == FL_VALUE_TYPE_MAP) {
+    //     g_print("Received keys:\n");
+    //     for (int i = 0; i < fl_value_get_length(args_value); ++i) {
+    //         FlValue* key = fl_value_get_map_key(args_value, i);
+    //         if (fl_value_get_type(key) == FL_VALUE_TYPE_STRING) {
+    //             g_print("- %s\n", fl_value_get_string(key));
+    //         }
+    //     }
+    // }
+
     auto *args = fl_method_call_get_args(method_call);
     if (fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {
       fl_method_call_respond_error(method_call, "0", "create args is not map",
@@ -50,13 +63,35 @@ static void webview_window_plugin_handle_method_call(
 
     auto window_id = next_window_id_;
     g_object_ref(self);
+
+    auto user_scripts_value = fl_value_lookup_string(args, "userScripts");
+    std::vector<UserScript> user_scripts;
+    // g_print("userScripts list length: %zu\n", fl_value_get_length(user_scripts_value));
+    if (user_scripts_value != nullptr &&
+        fl_value_get_type(user_scripts_value) == FL_VALUE_TYPE_LIST) {
+      for (int i = 0; i < fl_value_get_length(user_scripts_value); ++i) {
+        auto script_map = fl_value_get_list_value(user_scripts_value, i);
+        if (fl_value_get_type(script_map) == FL_VALUE_TYPE_MAP) {
+          auto source = fl_value_get_string(
+              fl_value_lookup_string(script_map, "source"));
+          // g_print("script: %s\n", source);
+          auto injection_time = fl_value_get_int(
+              fl_value_lookup_string(script_map, "injectionTime"));
+          auto for_all_frames = fl_value_get_bool(
+              fl_value_lookup_string(script_map, "forAllFrames"));
+          user_scripts.push_back(
+              {source, static_cast<int>(injection_time), for_all_frames});
+        }
+      }
+    }
+
     auto webview = std::make_unique<WebviewWindow>(
         self->method_channel, window_id,
         [self, window_id]() {
           self->windows->erase(window_id);
           g_object_unref(self);
         },
-        title, width, height, title_bar_height);
+        title, width, height, title_bar_height, user_scripts);
     self->windows->insert({window_id, std::move(webview)});
     next_window_id_++;
     fl_method_call_respond_success(method_call, fl_value_new_int(window_id),

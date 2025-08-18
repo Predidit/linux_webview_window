@@ -17,6 +17,8 @@ import 'src/webview_impl.dart';
 
 export 'src/create_configuration.dart';
 export 'src/title_bar.dart';
+export 'src/user_script.dart';
+export 'src/user_script_injection_time.dart';
 export 'src/webview.dart';
 
 final List<WebviewImpl> _webviews = [];
@@ -64,6 +66,7 @@ class WebviewWindow {
   }) async {
     configuration ??= CreateConfiguration.platform();
     _init();
+    // print(configuration.toMap());
     final viewId = await _channel.invokeMethod(
       "create",
       configuration.toMap(),
