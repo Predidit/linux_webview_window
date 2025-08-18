@@ -116,7 +116,7 @@ gboolean decide_policy_cb(WebKitWebView *web_view,
 WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                              std::function<void()> on_close_callback,
                              const std::string &title, int width, int height,
-                             int title_bar_height,
+                             int title_bar_height, bool headless,
                              const std::vector<UserScript> &user_scripts)
     : method_channel_(method_channel),
       window_id_(window_id),
@@ -201,9 +201,10 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   default_user_agent_ = webkit_settings_get_user_agent(settings);
   gtk_box_pack_end(box_, webview_, true, true, 0);
 
-  // disable gtk window to get a headless webview
-  // gtk_widget_show_all(GTK_WIDGET(window_));
-  // gtk_widget_grab_focus(GTK_WIDGET(webview_));
+  if (!headless) {
+    gtk_widget_show_all(GTK_WIDGET(window_));
+    gtk_widget_grab_focus(GTK_WIDGET(webview_));
+  }
 
   // FROM: https://github.com/leanflutter/window_manager/pull/343
   // Disconnect all delete-event handlers first in flutter 3.10.1, which causes

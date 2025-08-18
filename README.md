@@ -5,7 +5,8 @@ A fork of [desktop_webview_window](https://pub.dev/packages/desktop_webview_wind
 # What's new about the fork
 
 - Add `onJavascriptWebMessageReceived` implements on Linux.
-- Disable GTK window, so we get a headless webview.
+- Add native `UserScript` implements on Linux
+- Optional GTK window, so we get a headless webview.
 - Remove Windows/MacOS implements, so that we can use more mature webview plugins on Windows/MacOS without redundant binaries.
 
 # Why not retain the fork relationship?

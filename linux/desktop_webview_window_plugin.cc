@@ -60,6 +60,11 @@ static void webview_window_plugin_handle_method_call(
     auto title = fl_value_get_string(fl_value_lookup_string(args, "title"));
     auto title_bar_height =
         fl_value_get_int(fl_value_lookup_string(args, "titleBarHeight"));
+    auto headless_value = fl_value_lookup_string(args, "headless");
+    auto headless = false;
+    if (fl_value_get_type(headless_value) == FL_VALUE_TYPE_BOOL) {
+      headless = fl_value_get_bool(headless_value);
+    }
 
     auto window_id = next_window_id_;
     g_object_ref(self);
@@ -91,7 +96,7 @@ static void webview_window_plugin_handle_method_call(
           self->windows->erase(window_id);
           g_object_unref(self);
         },
-        title, width, height, title_bar_height, user_scripts);
+        title, width, height, title_bar_height, headless, user_scripts);
     self->windows->insert({window_id, std::move(webview)});
     next_window_id_++;
     fl_method_call_respond_success(method_call, fl_value_new_int(window_id),
