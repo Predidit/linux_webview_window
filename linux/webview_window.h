@@ -77,7 +77,6 @@ class WebviewWindow {
 
   GtkWidget *window_ = nullptr;
   GtkWidget *webview_ = nullptr;
-  GtkBox *box_ = nullptr;
 };
 
 #endif  // WEBVIEW_WINDOW_LINUX_WEBVIEW_WINDOW_H_
