@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/material.dart';
@@ -9,9 +8,6 @@ import 'package:path_provider/path_provider.dart';
 void main(List<String> args) {
   debugPrint('args: $args');
   WidgetsFlutterBinding.ensureInitialized();
-  if (runWebViewTitleBarWidget(args)) {
-    return;
-  }
   runApp(const MyApp());
 }
 
@@ -63,7 +59,6 @@ class _MyAppState extends State<MyApp> {
                     windowHeight: 1280,
                     windowWidth: 720,
                     title: "ExampleTestWindow",
-                    titleBarTopPadding: Platform.isMacOS ? 20 : 0,
                     userDataFolderWindows: await _getWebViewPath(),
                   ),
                 );
@@ -146,7 +141,6 @@ class _MyAppState extends State<MyApp> {
       configuration: CreateConfiguration(
           headless: _headless,
           userDataFolderWindows: await _getWebViewPath(),
-          titleBarTopPadding: Platform.isMacOS ? 20 : 0,
           userScripts: [
             UserScript(
                 source: _userScriptToEval[0],
