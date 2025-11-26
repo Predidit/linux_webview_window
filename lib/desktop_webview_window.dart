@@ -11,12 +11,10 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import 'src/create_configuration.dart';
-import 'src/message_channel.dart';
 import 'src/webview.dart';
 import 'src/webview_impl.dart';
 
 export 'src/create_configuration.dart';
-export 'src/title_bar.dart';
 export 'src/user_script.dart';
 export 'src/user_script_injection_time.dart';
 export 'src/webview.dart';
@@ -25,8 +23,6 @@ final List<WebviewImpl> _webviews = [];
 
 class WebviewWindow {
   static const MethodChannel _channel = MethodChannel('webview_window');
-
-  static const _otherIsolateMessageHandler = ClientMessageChannel();
 
   static bool _inited = false;
 
@@ -41,13 +37,6 @@ class WebviewWindow {
       } catch (e, s) {
         debugPrint("method: ${call.method} args: ${call.arguments}");
         debugPrint('handleMethodCall error: $e $s');
-      }
-    });
-    _otherIsolateMessageHandler.setMessageHandler((call) async {
-      try {
-        return await _handleOtherIsolateMethodCall(call);
-      } catch (e, s) {
-        debugPrint('_handleOtherIsolateMethodCall error: $e $s');
       }
     });
   }
@@ -76,33 +65,6 @@ class WebviewWindow {
     return webview;
   }
 
-  static Future<dynamic> _handleOtherIsolateMethodCall(MethodCall call) async {
-    final webViewId = call.arguments['webViewId'] as int;
-    final webView = _webviews
-        .cast<WebviewImpl?>()
-        .firstWhere((w) => w?.viewId == webViewId, orElse: () => null);
-    if (webView == null) {
-      return;
-    }
-    switch (call.method) {
-      case 'onBackPressed':
-        await webView.back();
-        break;
-      case 'onForwardPressed':
-        await webView.forward();
-        break;
-      case 'onRefreshPressed':
-        await webView.reload();
-        break;
-      case 'onStopPressed':
-        await webView.stop();
-        break;
-      case 'onClosePressed':
-        webView.close();
-        break;
-    }
-  }
-
   static Future<dynamic> _handleMethodCall(MethodCall call) async {
     final args = call.arguments as Map;
     final viewId = args['id'] as int;
@@ -128,33 +90,17 @@ class WebviewWindow {
         );
       case "onHistoryChanged":
         webview.onHistoryChanged(args['canGoBack'], args['canGoForward']);
-        await _otherIsolateMessageHandler.invokeMethod('onHistoryChanged', {
-          'webViewId': viewId,
-          'canGoBack': args['canGoBack'] as bool,
-          'canGoForward': args['canGoForward'] as bool,
-        });
         break;
       case "onNavigationStarted":
         webview.onNavigationStarted();
-        await _otherIsolateMessageHandler.invokeMethod('onNavigationStarted', {
-          'webViewId': viewId,
-        });
         break;
       case "onUrlRequested":
         final url = args['url'] as String;
         final ret = webview.notifyUrlChanged(url);
-        await _otherIsolateMessageHandler.invokeMethod('onUrlRequested', {
-          'webViewId': viewId,
-          'url': url,
-        });
         return ret;
       case "onWebMessageReceived":
         final message = args['message'] as String;
         webview.notifyWebMessageReceived(message);
-        await _otherIsolateMessageHandler.invokeMethod('onWebMessageReceived', {
-          'webViewId': viewId,
-          'message': message,
-        });
         break;
       case "onJavascriptWebMessageReceived":
         final message = args['message'] as String;
@@ -162,10 +108,6 @@ class WebviewWindow {
         break;
       case "onNavigationCompleted":
         webview.onNavigationCompleted();
-        await _otherIsolateMessageHandler
-            .invokeMethod('onNavigationCompleted', {
-          'webViewId': viewId,
-        });
         break;
       default:
         return;
