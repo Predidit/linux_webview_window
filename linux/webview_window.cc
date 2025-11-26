@@ -210,7 +210,7 @@ void WebviewWindow::SetApplicationNameForUserAgent(
                                  (default_user_agent_ + app_name).c_str());
 }
 
-void WebviewWindow::Close() { gtk_window_close(GTK_WINDOW(window_)); }
+void WebviewWindow::Close() { gtk_widget_destroy(GTK_WIDGET(window_)); }
 
 void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
   // notify history changed event.
