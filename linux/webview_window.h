@@ -35,13 +35,11 @@ GList *get_cookies_sync(WebKitWebView *web_view);
 
 class WebviewWindow {
  public:
-  WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
-                std::function<void()> on_close_callback,
-                const std::string &title, int width, int height,
-                int title_bar_height, bool headless,
-                const std::vector<UserScript> &user_scripts);
-
-  virtual ~WebviewWindow();
+WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
+               std::function<void()> on_close_callback,
+               const std::string &title, int width, int height,
+               bool headless,
+               const std::vector<UserScript> &user_scripts);  virtual ~WebviewWindow();
 
   void Navigate(const char *url);
 
@@ -77,7 +75,6 @@ class WebviewWindow {
 
   GtkWidget *window_ = nullptr;
   GtkWidget *webview_ = nullptr;
-  GtkBox *box_ = nullptr;
 };
 
 #endif  // WEBVIEW_WINDOW_LINUX_WEBVIEW_WINDOW_H_

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:desktop_webview_window/src/user_script.dart';
 
 class CreateConfiguration {
@@ -12,10 +10,6 @@ class CreateConfiguration {
 
   /// the title of window
   final String title;
-
-  final int titleBarHeight;
-
-  final int titleBarTopPadding;
 
   final String userDataFolderWindows;
 
@@ -32,8 +26,6 @@ class CreateConfiguration {
     this.windowPosX = 0,
     this.windowPosY = 0,
     this.title = "",
-    this.titleBarHeight = 40,
-    this.titleBarTopPadding = 0,
     this.userDataFolderWindows = 'webview_window_WebView2',
     this.useWindowPositionAndSize = false,
     this.openMaximized = false,
@@ -42,9 +34,7 @@ class CreateConfiguration {
   });
 
   factory CreateConfiguration.platform() {
-    return CreateConfiguration(
-      titleBarTopPadding: Platform.isMacOS ? 24 : 0,
-    );
+    return CreateConfiguration();
   }
 
   Map toMap() => {
@@ -53,8 +43,6 @@ class CreateConfiguration {
         "windowPosX": windowPosX,
         "windowPosY": windowPosY,
         "title": title,
-        "titleBarHeight": titleBarHeight,
-        "titleBarTopPadding": titleBarTopPadding,
         "userDataFolderWindows": userDataFolderWindows,
         "useWindowPositionAndSize": useWindowPositionAndSize,
         "openMaximized": openMaximized,
