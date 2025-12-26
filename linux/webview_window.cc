@@ -120,7 +120,8 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
     : method_channel_(method_channel),
       window_id_(window_id),
       on_close_callback_(std::move(on_close_callback)),
-      default_user_agent_() {
+      default_user_agent_(),
+      is_valid_(std::make_shared<std::atomic<bool>>(true)) {
   g_object_ref(method_channel_);
 
   window_ = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -186,6 +187,27 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
 }
 
 WebviewWindow::~WebviewWindow() {
+  // Mark as invalid to prevent callbacks from accessing this object
+  is_valid_->store(false);
+  
+  // Clear pending JavaScript requests
+  {
+    std::lock_guard<std::mutex> lock(js_queue_mutex_);
+    while (!js_queue_.empty()) {
+      auto request = js_queue_.front();
+      js_queue_.pop();
+      
+      // Respond with error for pending requests
+      g_idle_add([](gpointer user_data) -> gboolean {
+        auto *call = static_cast<FlMethodCall *>(user_data);
+        fl_method_call_respond_error(call, "window_closed", 
+                                     "WebView window was closed", nullptr, nullptr);
+        g_object_unref(call);
+        return G_SOURCE_REMOVE;
+      }, request.call);
+    }
+  }
+  
   g_object_unref(method_channel_);
   printf("~WebviewWindow\n");
 }
@@ -345,6 +367,7 @@ struct EvalJSResponse {
   gchar *error_message;
   gboolean is_error;
   WebviewWindow *window;
+  std::shared_ptr<std::atomic<bool>> window_valid;
 };
 
 static gboolean send_eval_response_on_main_thread(gpointer user_data) {
@@ -371,7 +394,8 @@ static gboolean send_eval_response_on_main_thread(gpointer user_data) {
   g_free(response->error_code);
   g_free(response->error_message);
   
-  if (response->window) {
+  // Safely process next request if window is still valid
+  if (response->window && response->window_valid && response->window_valid->load()) {
     response->window->ProcessNextJSRequest();
   }
   
@@ -418,12 +442,13 @@ void WebviewWindow::ProcessNextJSRequest() {
 
 void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
                                               FlMethodCall *call) {
-  // Create a context struct to pass both call and window pointer
+  // Create a context struct with lifecycle management
   struct CallbackContext {
     FlMethodCall *call;
     WebviewWindow *window;
+    std::shared_ptr<std::atomic<bool>> is_valid;
   };
-  auto *context = new CallbackContext{call, this};
+  auto *context = new CallbackContext{call, this, is_valid_};
   
 #ifdef WEBKIT_OLD_USED
   webkit_web_view_run_javascript(
@@ -439,7 +464,23 @@ void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
         auto *context = static_cast<CallbackContext *>(user_data);
         auto *call = context->call;
         auto *window = context->window;
+        auto is_valid = context->is_valid;
         delete context;
+        
+        // Check if window is still valid
+        if (!is_valid || !is_valid->load()) {
+          g_warning("EvaluateJavaScript callback: window destroyed");
+          if (call) {
+            g_idle_add([](gpointer user_data) -> gboolean {
+              auto *call = static_cast<FlMethodCall *>(user_data);
+              fl_method_call_respond_error(call, "window_destroyed", 
+                                           "WebView window was destroyed", nullptr, nullptr);
+              g_object_unref(call);
+              return G_SOURCE_REMOVE;
+            }, call);
+          }
+          return;
+        }
         
         GError *error = nullptr;
         gchar *result_string = nullptr;
@@ -449,7 +490,7 @@ void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
         
         if (!call) {
           g_warning("EvaluateJavaScript callback: call is null");
-          if (window) {
+          if (window && is_valid->load()) {
             window->ProcessNextJSRequest();
           }
           return;
@@ -562,7 +603,8 @@ void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
             error_code,
             error_message,
             is_error,
-            window
+            window,
+            is_valid
         };
         
         g_idle_add(send_eval_response_on_main_thread, response);

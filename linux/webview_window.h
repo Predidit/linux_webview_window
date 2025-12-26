@@ -16,6 +16,8 @@
 #include <vector>
 #include <queue>
 #include <mutex>
+#include <memory>
+#include <atomic>
 
 typedef struct {
     GMainLoop *loop;
@@ -88,6 +90,9 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   std::queue<JSRequest> js_queue_;
   std::mutex js_queue_mutex_;
   bool js_executing_ = false;
+  
+  // Lifecycle management
+  std::shared_ptr<std::atomic<bool>> is_valid_;
   
   void ExecuteJavaScriptInternal(const char *java_script, FlMethodCall *call);
 };
