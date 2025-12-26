@@ -67,6 +67,8 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                         WebKitPolicyDecisionType type);
 
   void EvaluateJavaScript(const char *java_script, FlMethodCall *call);
+  
+  void ProcessNextJSRequest();
 
  private:
   FlMethodChannel *method_channel_;
@@ -87,7 +89,6 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   std::mutex js_queue_mutex_;
   bool js_executing_ = false;
   
-  void ProcessNextJSRequest();
   void ExecuteJavaScriptInternal(const char *java_script, FlMethodCall *call);
 };
 
