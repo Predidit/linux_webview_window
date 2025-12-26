@@ -466,59 +466,77 @@ void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
         } else {
           JSCValue *value = webkit_javascript_result_get_js_value(js_result);
 #else
-        JSCValue *value = webkit_web_view_evaluate_javascript_finish(
+        JSCValue *value = nullptr;
+        
+        // Try to get the result, handle potential errors
+        value = webkit_web_view_evaluate_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
-        if (!value || error) {
+            
+        if (error) {
           is_error = TRUE;
           error_code = g_strdup("eval_failed");
-          if (error) {
-            error_message = g_strdup(error->message ? error->message : "JavaScript execution failed");
-            g_error_free(error);
-          } else {
-            error_message = g_strdup("JavaScript execution failed with null result");
-          }
+          error_message = g_strdup(error->message ? error->message : "JavaScript execution failed");
+          g_warning("JavaScript execution error: %s", error->message ? error->message : "unknown");
+          g_error_free(error);
+        } else if (!value) {
+          is_error = TRUE;
+          error_code = g_strdup("eval_failed");
+          error_message = g_strdup("JavaScript execution returned null value");
+          g_warning("JavaScript execution returned null value");
         } else {
 #endif
-          // Process the JavaScript value
+          // Process the JavaScript value with try-catch protection
           if (!value) {
             result_string = g_strdup("null");
-          } else if (jsc_value_is_null(value)) {
-            result_string = g_strdup("null");
-          } else if (jsc_value_is_undefined(value)) {
-            result_string = g_strdup("undefined");
-          } else if (jsc_value_is_boolean(value)) {
-            result_string = g_strdup(jsc_value_to_boolean(value) ? "true" : "false");
-          } else if (jsc_value_is_number(value)) {
-            gdouble num = jsc_value_to_double(value);
-            if (std::isnan(num)) {
-              result_string = g_strdup("NaN");
-            } else if (std::isinf(num)) {
-              result_string = g_strdup(num > 0 ? "Infinity" : "-Infinity");
-            } else {
-              result_string = g_strdup_printf("%g", num);
-            }
-          } else if (jsc_value_is_string(value)) {
-            char *str = jsc_value_to_string(value);
-            if (str) {
-              result_string = g_strdup_printf("\"%s\"", str);
-              g_free(str);
-            } else {
-              result_string = g_strdup("\"\"");
-            }
-          } else if (jsc_value_is_object(value) || jsc_value_is_array(value)) {
-            // Try JSON serialization first
-            result_string = jsc_value_to_json(value, 0);
-            if (!result_string) {
-              // If JSON conversion fails, try toString as fallback
+          } else {
+            // Use exception handling for type checks
+            JSCException *exception = jsc_context_get_exception(jsc_value_get_context(value));
+            if (exception) {
+              is_error = TRUE;
+              error_code = g_strdup("eval_failed");
+              char *exc_msg = jsc_exception_to_string(exception);
+              error_message = g_strdup(exc_msg ? exc_msg : "JavaScript exception");
+              g_warning("JavaScript exception: %s", exc_msg ? exc_msg : "unknown");
+              g_free(exc_msg);
+              jsc_context_clear_exception(jsc_value_get_context(value));
+            } else if (jsc_value_is_null(value)) {
+              result_string = g_strdup("null");
+            } else if (jsc_value_is_undefined(value)) {
+              result_string = g_strdup("undefined");
+            } else if (jsc_value_is_boolean(value)) {
+              result_string = g_strdup(jsc_value_to_boolean(value) ? "true" : "false");
+            } else if (jsc_value_is_number(value)) {
+              gdouble num = jsc_value_to_double(value);
+              if (std::isnan(num)) {
+                result_string = g_strdup("NaN");
+              } else if (std::isinf(num)) {
+                result_string = g_strdup(num > 0 ? "Infinity" : "-Infinity");
+              } else {
+                result_string = g_strdup_printf("%g", num);
+              }
+            } else if (jsc_value_is_string(value)) {
               char *str = jsc_value_to_string(value);
-              result_string = g_strdup(str ? str : "[Object]");
+              if (str) {
+                result_string = g_strdup_printf("\"%s\"", str);
+                g_free(str);
+              } else {
+                result_string = g_strdup("\"\"");
+              }
+            } else if (jsc_value_is_object(value) || jsc_value_is_array(value)) {
+              // Try JSON serialization first
+              result_string = jsc_value_to_json(value, 0);
+              if (!result_string) {
+                // If JSON conversion fails, try toString as fallback
+                char *str = jsc_value_to_string(value);
+                result_string = g_strdup(str ? str : "[Object]");
+                if (str) g_free(str);
+              }
+            } else {
+              // For functions, symbols, and other unsupported types
+              char *str = jsc_value_to_string(value);
+              result_string = g_strdup(str ? str : "undefined");
               if (str) g_free(str);
             }
-          } else {
-            // For functions, symbols, and other unsupported types
-            char *str = jsc_value_to_string(value);
-            result_string = g_strdup(str ? str : "undefined");
-            if (str) g_free(str);
           }
           
 #ifdef WEBKIT_OLD_USED
