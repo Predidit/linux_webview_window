@@ -364,15 +364,41 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
                                        error->message, nullptr, nullptr);
           g_error_free(error);
         } else {
-          auto *js_value = jsc_value_to_json(
-#ifdef WEBKIT_OLD_USED
-              webkit_javascript_result_get_js_value
-#endif
-              (js_result),
-              0);
+          JSCValue *value = webkit_javascript_result_get_js_value(js_result);
+          const char *result_string = nullptr;
+          
+          if (jsc_value_is_null(value)) {
+            result_string = g_strdup("null");
+          } else if (jsc_value_is_undefined(value)) {
+            result_string = g_strdup("undefined");
+          } else if (jsc_value_is_boolean(value)) {
+            result_string = g_strdup(jsc_value_to_boolean(value) ? "true" : "false");
+          } else if (jsc_value_is_number(value)) {
+            gdouble num = jsc_value_to_double(value);
+            result_string = g_strdup_printf("%g", num);
+          } else if (jsc_value_is_string(value)) {
+            char *str = jsc_value_to_string(value);
+            result_string = g_strdup_printf("\"%s\"", str);
+            g_free(str);
+          } else if (jsc_value_is_object(value) || jsc_value_is_array(value)) {
+            result_string = jsc_value_to_json(value, 0);
+            if (!result_string) {
+              // If JSON conversion fails, try toString
+              char *str = jsc_value_to_string(value);
+              result_string = g_strdup(str ? str : "[Object]");
+              g_free(str);
+            }
+          } else {
+            // For functions, symbols, and other unsupported types
+            char *str = jsc_value_to_string(value);
+            result_string = g_strdup(str ? str : "undefined");
+            g_free(str);
+          }
+          
           fl_method_call_respond_success(
-              call, js_value ? fl_value_new_string(js_value) : nullptr,
+              call, result_string ? fl_value_new_string(result_string) : nullptr,
               nullptr);
+          g_free((gpointer)result_string);
         }
         g_object_unref(call);
       },
