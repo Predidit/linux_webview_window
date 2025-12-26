@@ -337,6 +337,42 @@ gboolean WebviewWindow::DecidePolicy(WebKitPolicyDecision *decision,
   return false;
 }
 
+struct EvalJSResponse {
+  FlMethodCall *call;
+  gchar *result_string;
+  gchar *error_code;
+  gchar *error_message;
+  gboolean is_error;
+};
+
+static gboolean send_eval_response_on_main_thread(gpointer user_data) {
+  auto *response = static_cast<EvalJSResponse *>(user_data);
+  
+  if (response->is_error) {
+    fl_method_call_respond_error(
+        response->call, 
+        response->error_code ? response->error_code : "eval_error",
+        response->error_message ? response->error_message : "unknown error",
+        nullptr, 
+        nullptr);
+  } else {
+    if (response->result_string) {
+      g_autoptr(FlValue) fl_result = fl_value_new_string(response->result_string);
+      fl_method_call_respond_success(response->call, fl_result, nullptr);
+    } else {
+      fl_method_call_respond_success(response->call, nullptr, nullptr);
+    }
+  }
+  
+  g_object_unref(response->call);
+  g_free(response->result_string);
+  g_free(response->error_code);
+  g_free(response->error_message);
+  delete response;
+  
+  return G_SOURCE_REMOVE;
+}
+
 void WebviewWindow::EvaluateJavaScript(const char *java_script,
                                        FlMethodCall *call) {
 #ifdef WEBKIT_OLD_USED
@@ -352,36 +388,32 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
       [](GObject *object, GAsyncResult *result, gpointer user_data) {
         auto *call = static_cast<FlMethodCall *>(user_data);
         GError *error = nullptr;
-        const char *result_string = nullptr;
+        gchar *result_string = nullptr;
+        gboolean is_error = FALSE;
+        gchar *error_code = nullptr;
+        gchar *error_message = nullptr;
         
 #ifdef WEBKIT_OLD_USED
         auto *js_result = webkit_web_view_run_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
         if (!js_result) {
-          fl_method_call_respond_error(call, "failed to evaluate javascript.",
-                                       error ? error->message : "unknown error", 
-                                       nullptr, nullptr);
+          is_error = TRUE;
+          error_code = g_strdup("eval_failed");
+          error_message = g_strdup(error ? error->message : "unknown error");
           if (error) g_error_free(error);
-          g_object_unref(call);
-          return;
-        }
-        
-        JSCValue *value = webkit_javascript_result_get_js_value(js_result);
+        } else {
+          JSCValue *value = webkit_javascript_result_get_js_value(js_result);
 #else
         JSCValue *value = webkit_web_view_evaluate_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
         if (!value) {
-          fl_method_call_respond_error(call, "failed to evaluate javascript.",
-                                       error ? error->message : "unknown error", 
-                                       nullptr, nullptr);
+          is_error = TRUE;
+          error_code = g_strdup("eval_failed");
+          error_message = g_strdup(error ? error->message : "unknown error");
           if (error) g_error_free(error);
-          g_object_unref(call);
-          return;
-        }
+        } else {
 #endif
-        
-        if (value) {
-          
+          // Process the JavaScript value
           if (jsc_value_is_null(value)) {
             result_string = g_strdup("null");
           } else if (jsc_value_is_undefined(value)) {
@@ -410,23 +442,20 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
             g_free(str);
           }
           
-          if (result_string) {
-            fl_method_call_respond_success(call, fl_value_new_string(result_string), nullptr);
-            g_free((gpointer)result_string);
-          } else {
-            fl_method_call_respond_success(call, nullptr, nullptr);
-          }
-        } else {
-          // Value is null 
-          // Should not happen but handle gracefully
-          fl_method_call_respond_success(call, fl_value_new_string("null"), nullptr);
+#ifdef WEBKIT_OLD_USED
+          webkit_javascript_result_unref(js_result);
+#endif
         }
         
-#ifdef WEBKIT_OLD_USED
-        webkit_javascript_result_unref(js_result);
-#endif
+        auto *response = new EvalJSResponse{
+            call,
+            result_string,
+            error_code,
+            error_message,
+            is_error
+        };
         
-        g_object_unref(call);
+        g_idle_add(send_eval_response_on_main_thread, response);
       },
       g_object_ref(call));
 }
