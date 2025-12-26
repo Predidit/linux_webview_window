@@ -352,22 +352,23 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
       [](GObject *object, GAsyncResult *result, gpointer user_data) {
         auto *call = static_cast<FlMethodCall *>(user_data);
         GError *error = nullptr;
-        JSCValue *value = nullptr;
+        const char *result_string = nullptr;
         
 #ifdef WEBKIT_OLD_USED
         auto *js_result = webkit_web_view_run_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
         if (!js_result) {
           fl_method_call_respond_error(call, "failed to evaluate javascript.",
-                                       error->message, nullptr, nullptr);
-          g_error_free(error);
+                                       error ? error->message : "unknown error", 
+                                       nullptr, nullptr);
+          if (error) g_error_free(error);
           g_object_unref(call);
           return;
         }
-        value = webkit_javascript_result_get_js_value(js_result);
-        webkit_javascript_result_unref(js_result);
+        
+        JSCValue *value = webkit_javascript_result_get_js_value(js_result);
 #else
-        value = webkit_web_view_evaluate_javascript_finish(
+        JSCValue *value = webkit_web_view_evaluate_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
         if (!value) {
           fl_method_call_respond_error(call, "failed to evaluate javascript.",
@@ -380,7 +381,6 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
 #endif
         
         if (value) {
-          const char *result_string = nullptr;
           
           if (jsc_value_is_null(value)) {
             result_string = g_strdup("null");
@@ -410,11 +410,21 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
             g_free(str);
           }
           
-          fl_method_call_respond_success(
-              call, result_string ? fl_value_new_string(result_string) : nullptr,
-              nullptr);
-          g_free((gpointer)result_string);
+          if (result_string) {
+            fl_method_call_respond_success(call, fl_value_new_string(result_string), nullptr);
+            g_free((gpointer)result_string);
+          } else {
+            fl_method_call_respond_success(call, nullptr, nullptr);
+          }
+        } else {
+          // Value is null 
+          // Should not happen but handle gracefully
+          fl_method_call_respond_success(call, fl_value_new_string("null"), nullptr);
         }
+        
+#ifdef WEBKIT_OLD_USED
+        webkit_javascript_result_unref(js_result);
+#endif
         
         g_object_unref(call);
       },
