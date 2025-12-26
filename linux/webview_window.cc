@@ -344,6 +344,7 @@ struct EvalJSResponse {
   gchar *error_code;
   gchar *error_message;
   gboolean is_error;
+  WebviewWindow *window;
 };
 
 static gboolean send_eval_response_on_main_thread(gpointer user_data) {
@@ -369,6 +370,11 @@ static gboolean send_eval_response_on_main_thread(gpointer user_data) {
   g_free(response->result_string);
   g_free(response->error_code);
   g_free(response->error_message);
+  
+  if (response->window) {
+    response->window->ProcessNextJSRequest();
+  }
+  
   delete response;
   
   return G_SOURCE_REMOVE;
@@ -376,6 +382,49 @@ static gboolean send_eval_response_on_main_thread(gpointer user_data) {
 
 void WebviewWindow::EvaluateJavaScript(const char *java_script,
                                        FlMethodCall *call) {
+  std::lock_guard<std::mutex> lock(js_queue_mutex_);
+  
+  // Add request to queue
+  js_queue_.push({std::string(java_script), call});
+  g_object_ref(call);
+  
+  // If not currently executing, start processing
+  if (!js_executing_) {
+    js_executing_ = true;
+    // Use g_idle_add to process on main thread
+    g_idle_add([](gpointer user_data) -> gboolean {
+      auto *window = static_cast<WebviewWindow *>(user_data);
+      window->ProcessNextJSRequest();
+      return G_SOURCE_REMOVE;
+    }, this);
+  }
+}
+
+void WebviewWindow::ProcessNextJSRequest() {
+  JSRequest request;
+  
+  {
+    std::lock_guard<std::mutex> lock(js_queue_mutex_);
+    if (js_queue_.empty()) {
+      js_executing_ = false;
+      return;
+    }
+    request = js_queue_.front();
+    js_queue_.pop();
+  }
+  
+  ExecuteJavaScriptInternal(request.script.c_str(), request.call);
+}
+
+void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
+                                              FlMethodCall *call) {
+  // Create a context struct to pass both call and window pointer
+  struct CallbackContext {
+    FlMethodCall *call;
+    WebviewWindow *window;
+  };
+  auto *context = new CallbackContext{call, this};
+  
 #ifdef WEBKIT_OLD_USED
   webkit_web_view_run_javascript(
 #else
@@ -387,7 +436,11 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
 #endif
       nullptr,
       [](GObject *object, GAsyncResult *result, gpointer user_data) {
-        auto *call = static_cast<FlMethodCall *>(user_data);
+        auto *context = static_cast<CallbackContext *>(user_data);
+        auto *call = context->call;
+        auto *window = context->window;
+        delete context;
+        
         GError *error = nullptr;
         gchar *result_string = nullptr;
         gboolean is_error = FALSE;
@@ -396,6 +449,9 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
         
         if (!call) {
           g_warning("EvaluateJavaScript callback: call is null");
+          if (window) {
+            window->ProcessNextJSRequest();
+          }
           return;
         }
         
@@ -487,10 +543,11 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
             result_string,
             error_code,
             error_message,
-            is_error
+            is_error,
+            window
         };
         
         g_idle_add(send_eval_response_on_main_thread, response);
       },
-      g_object_ref(call));
+      context);
 }

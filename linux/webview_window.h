@@ -14,6 +14,8 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <queue>
+#include <mutex>
 
 typedef struct {
     GMainLoop *loop;
@@ -75,6 +77,18 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
 
   GtkWidget *window_ = nullptr;
   GtkWidget *webview_ = nullptr;
+  
+  // JavaScript execution queue
+  struct JSRequest {
+    std::string script;
+    FlMethodCall *call;
+  };
+  std::queue<JSRequest> js_queue_;
+  std::mutex js_queue_mutex_;
+  bool js_executing_ = false;
+  
+  void ProcessNextJSRequest();
+  void ExecuteJavaScriptInternal(const char *java_script, FlMethodCall *call);
 };
 
 #endif  // WEBVIEW_WINDOW_LINUX_WEBVIEW_WINDOW_H_
