@@ -352,19 +352,34 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
       [](GObject *object, GAsyncResult *result, gpointer user_data) {
         auto *call = static_cast<FlMethodCall *>(user_data);
         GError *error = nullptr;
-        auto *js_result =
+        JSCValue *value = nullptr;
+        
 #ifdef WEBKIT_OLD_USED
-            webkit_web_view_run_javascript_finish(
-#else
-            webkit_web_view_evaluate_javascript_finish(
-#endif
-                WEBKIT_WEB_VIEW(object), result, &error);
+        auto *js_result = webkit_web_view_run_javascript_finish(
+            WEBKIT_WEB_VIEW(object), result, &error);
         if (!js_result) {
           fl_method_call_respond_error(call, "failed to evaluate javascript.",
                                        error->message, nullptr, nullptr);
           g_error_free(error);
-        } else {
-          JSCValue *value = webkit_javascript_result_get_js_value(js_result);
+          g_object_unref(call);
+          return;
+        }
+        value = webkit_javascript_result_get_js_value(js_result);
+        webkit_javascript_result_unref(js_result);
+#else
+        value = webkit_web_view_evaluate_javascript_finish(
+            WEBKIT_WEB_VIEW(object), result, &error);
+        if (!value) {
+          fl_method_call_respond_error(call, "failed to evaluate javascript.",
+                                       error ? error->message : "unknown error", 
+                                       nullptr, nullptr);
+          if (error) g_error_free(error);
+          g_object_unref(call);
+          return;
+        }
+#endif
+        
+        if (value) {
           const char *result_string = nullptr;
           
           if (jsc_value_is_null(value)) {
@@ -400,6 +415,7 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
               nullptr);
           g_free((gpointer)result_string);
         }
+        
         g_object_unref(call);
       },
       g_object_ref(call));
