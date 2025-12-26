@@ -393,28 +393,39 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
         gchar *error_code = nullptr;
         gchar *error_message = nullptr;
         
+        if (!call) {
+          g_warning("EvaluateJavaScript callback: call is null");
+          return;
+        }
+        
 #ifdef WEBKIT_OLD_USED
         auto *js_result = webkit_web_view_run_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
         if (!js_result) {
           is_error = TRUE;
           error_code = g_strdup("eval_failed");
-          error_message = g_strdup(error ? error->message : "unknown error");
+          error_message = g_strdup(error ? error->message : "JavaScript execution failed");
           if (error) g_error_free(error);
         } else {
           JSCValue *value = webkit_javascript_result_get_js_value(js_result);
 #else
         JSCValue *value = webkit_web_view_evaluate_javascript_finish(
             WEBKIT_WEB_VIEW(object), result, &error);
-        if (!value) {
+        if (!value || error) {
           is_error = TRUE;
           error_code = g_strdup("eval_failed");
-          error_message = g_strdup(error ? error->message : "unknown error");
-          if (error) g_error_free(error);
+          if (error) {
+            error_message = g_strdup(error->message ? error->message : "JavaScript execution failed");
+            g_error_free(error);
+          } else {
+            error_message = g_strdup("JavaScript execution failed with null result");
+          }
         } else {
 #endif
           // Process the JavaScript value
-          if (jsc_value_is_null(value)) {
+          if (!value) {
+            result_string = g_strdup("null");
+          } else if (jsc_value_is_null(value)) {
             result_string = g_strdup("null");
           } else if (jsc_value_is_undefined(value)) {
             result_string = g_strdup("undefined");
@@ -422,29 +433,53 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
             result_string = g_strdup(jsc_value_to_boolean(value) ? "true" : "false");
           } else if (jsc_value_is_number(value)) {
             gdouble num = jsc_value_to_double(value);
-            result_string = g_strdup_printf("%g", num);
+            if (g_isnan(num)) {
+              result_string = g_strdup("NaN");
+            } else if (g_isinf(num)) {
+              result_string = g_strdup(num > 0 ? "Infinity" : "-Infinity");
+            } else {
+              result_string = g_strdup_printf("%g", num);
+            }
           } else if (jsc_value_is_string(value)) {
             char *str = jsc_value_to_string(value);
-            result_string = g_strdup_printf("\"%s\"", str);
-            g_free(str);
+            if (str) {
+              result_string = g_strdup_printf("\"%s\"", str);
+              g_free(str);
+            } else {
+              result_string = g_strdup("\"\"");
+            }
           } else if (jsc_value_is_object(value) || jsc_value_is_array(value)) {
+            // Try JSON serialization first
+            GError *json_error = nullptr;
             result_string = jsc_value_to_json(value, 0);
             if (!result_string) {
-              // If JSON conversion fails, try toString
+              // If JSON conversion fails, try toString as fallback
               char *str = jsc_value_to_string(value);
               result_string = g_strdup(str ? str : "[Object]");
-              g_free(str);
+              if (str) g_free(str);
             }
           } else {
             // For functions, symbols, and other unsupported types
             char *str = jsc_value_to_string(value);
             result_string = g_strdup(str ? str : "undefined");
-            g_free(str);
+            if (str) g_free(str);
           }
           
 #ifdef WEBKIT_OLD_USED
           webkit_javascript_result_unref(js_result);
 #endif
+        }
+        
+        if (!is_error && !result_string) {
+          result_string = g_strdup("null");
+        }
+        
+        if (is_error && !error_code) {
+          error_code = g_strdup("eval_failed");
+        }
+        
+        if (is_error && !error_message) {
+          error_message = g_strdup("Unknown JavaScript execution error");
         }
         
         auto *response = new EvalJSResponse{
