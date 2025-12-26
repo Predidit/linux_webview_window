@@ -4,6 +4,7 @@
 
 #include "webview_window.h"
 
+#include <cmath>
 #include <utility>
 
 #if WEBKIT_MAJOR_VERSION < 2 || \
@@ -433,9 +434,9 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
             result_string = g_strdup(jsc_value_to_boolean(value) ? "true" : "false");
           } else if (jsc_value_is_number(value)) {
             gdouble num = jsc_value_to_double(value);
-            if (g_isnan(num)) {
+            if (std::isnan(num)) {
               result_string = g_strdup("NaN");
-            } else if (g_isinf(num)) {
+            } else if (std::isinf(num)) {
               result_string = g_strdup(num > 0 ? "Infinity" : "-Infinity");
             } else {
               result_string = g_strdup_printf("%g", num);
@@ -450,7 +451,6 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
             }
           } else if (jsc_value_is_object(value) || jsc_value_is_array(value)) {
             // Try JSON serialization first
-            GError *json_error = nullptr;
             result_string = jsc_value_to_json(value, 0);
             if (!result_string) {
               // If JSON conversion fails, try toString as fallback
