@@ -373,6 +373,7 @@ struct EvalJSResponse {
 static gboolean send_eval_response_on_main_thread(gpointer user_data) {
   auto *response = static_cast<EvalJSResponse *>(user_data);
   
+  // Send response synchronously
   if (response->is_error) {
     fl_method_call_respond_error(
         response->call, 
@@ -394,12 +395,14 @@ static gboolean send_eval_response_on_main_thread(gpointer user_data) {
   g_free(response->error_code);
   g_free(response->error_message);
   
-  // Safely process next request if window is still valid
-  if (response->window && response->window_valid && response->window_valid->load()) {
-    response->window->ProcessNextJSRequest();
-  }
-  
+  auto *window = response->window;
+  auto window_valid = response->window_valid;
   delete response;
+  
+  // Trigger next request processing
+  if (window && window_valid && window_valid->load()) {
+    window->ProcessNextJSRequest();
+  }
   
   return G_SOURCE_REMOVE;
 }
@@ -426,6 +429,7 @@ void WebviewWindow::EvaluateJavaScript(const char *java_script,
 
 void WebviewWindow::ProcessNextJSRequest() {
   JSRequest request;
+  bool has_request = false;
   
   {
     std::lock_guard<std::mutex> lock(js_queue_mutex_);
@@ -435,9 +439,12 @@ void WebviewWindow::ProcessNextJSRequest() {
     }
     request = js_queue_.front();
     js_queue_.pop();
+    has_request = true;
   }
   
-  ExecuteJavaScriptInternal(request.script.c_str(), request.call);
+  if (has_request) {
+    ExecuteJavaScriptInternal(request.script.c_str(), request.call);
+  }
 }
 
 void WebviewWindow::ExecuteJavaScriptInternal(const char *java_script,
