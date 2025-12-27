@@ -115,7 +115,8 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                              std::function<void()> on_close_callback,
                              const std::string &title, int width, int height,
                              bool headless,
-                             const std::vector<UserScript> &user_scripts)
+                             const std::vector<UserScript> &user_scripts,
+                             bool enable_hardware_acceleration)
     : method_channel_(method_channel),
       window_id_(window_id),
       on_close_callback_(std::move(on_close_callback)),
@@ -175,6 +176,24 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
 
   auto settings = webkit_web_view_get_settings(WEBKIT_WEB_VIEW(webview_));
   webkit_settings_set_javascript_can_open_windows_automatically(settings, true);
+  
+  // Configure hardware acceleration policy
+  if (!enable_hardware_acceleration) {
+#if WEBKIT_MAJOR_VERSION > 2 || (WEBKIT_MAJOR_VERSION == 2 && WEBKIT_MINOR_VERSION >= 24)
+    webkit_settings_set_hardware_acceleration_policy(
+        settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER);
+#else
+    webkit_settings_set_enable_accelerated_2d_canvas(settings, FALSE);
+    webkit_settings_set_enable_webgl(settings, FALSE);
+#endif
+    g_print("WebView hardware acceleration disabled\n");
+  } else {
+#if WEBKIT_MAJOR_VERSION > 2 || (WEBKIT_MAJOR_VERSION == 2 && WEBKIT_MINOR_VERSION >= 24)
+    webkit_settings_set_hardware_acceleration_policy(
+        settings, WEBKIT_HARDWARE_ACCELERATION_POLICY_ON_DEMAND);
+#endif
+  }
+  
   default_user_agent_ = webkit_settings_get_user_agent(settings);
   gtk_container_add(GTK_CONTAINER(window_), webview_);
 

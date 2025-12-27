@@ -20,6 +20,8 @@ class CreateConfiguration {
 
   final bool headless;
 
+  final bool enableHardwareAcceleration;
+
   const CreateConfiguration({
     this.windowWidth = 1280,
     this.windowHeight = 720,
@@ -31,6 +33,7 @@ class CreateConfiguration {
     this.openMaximized = false,
     this.userScripts = const [],
     this.headless = false,
+    this.enableHardwareAcceleration = true,
   });
 
   factory CreateConfiguration.platform() {
@@ -48,5 +51,6 @@ class CreateConfiguration {
         "openMaximized": openMaximized,
         "userScripts": userScripts.map((e) => e.toMap()).toList(),
         "headless": headless,
+        "enableHardwareAcceleration": enableHardwareAcceleration,
       };
 }

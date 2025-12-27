@@ -39,7 +39,8 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                std::function<void()> on_close_callback,
                const std::string &title, int width, int height,
                bool headless,
-               const std::vector<UserScript> &user_scripts);  virtual ~WebviewWindow();
+               const std::vector<UserScript> &user_scripts,
+               bool enable_hardware_acceleration);  virtual ~WebviewWindow();
 
   void Navigate(const char *url);
 

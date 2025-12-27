@@ -36,6 +36,7 @@ class _MyAppState extends State<MyApp> {
   final TextEditingController _jsController = TextEditingController(text: '1 + 1');
 
   bool _headless = false;
+  bool _enableHardwareAcceleration = true;
   bool? _webviewAvailable;
 
   final List<_WebviewEntry> _entries = [];
@@ -76,6 +77,7 @@ class _MyAppState extends State<MyApp> {
       final controller = await WebviewWindow.create(
         configuration: CreateConfiguration(
           headless: _headless,
+          enableHardwareAcceleration: _enableHardwareAcceleration,
           userDataFolderWindows: await _getWebViewPath(),
         ),
       );
@@ -191,6 +193,12 @@ class _MyAppState extends State<MyApp> {
                     onChanged: (v) => setState(() => _headless = v),
                   ),
                   const Text('Headless'),
+                  const SizedBox(width: 16),
+                  Switch(
+                    value: _enableHardwareAcceleration,
+                    onChanged: (v) => setState(() => _enableHardwareAcceleration = v),
+                  ),
+                  const Text('Hardware Acceleration'),
                   const Spacer(),
                   Text('Active: ${_entries.length}'),
                 ],
