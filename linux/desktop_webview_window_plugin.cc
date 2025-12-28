@@ -87,7 +87,7 @@ static void webview_window_plugin_handle_method_call(
       }
     }
 
-    // 提取代理配置
+    // Extract proxy configuration
     auto proxy_args = fl_value_lookup_string(args, "proxy");
     char *proxy_url = nullptr;
     if (proxy_args != nullptr && fl_value_get_type(proxy_args) == FL_VALUE_TYPE_MAP) {

@@ -159,13 +159,13 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                      nullptr, nullptr));
   }
 
-  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
+  // Register callback for window.webkit.messageHandlers.msgToNative.postMessage(value)
   UserData* user_data = new UserData{window_id, method_channel_};
   g_signal_connect (manager, "script-message-received::msgToNative",
                   G_CALLBACK (handle_script_message), user_data);
   webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
 
-  // 设置代理
+  // Configure proxy settings
   auto *context = webkit_web_context_get_default();
   auto *data_manager = webkit_web_context_get_website_data_manager(context);
   if (proxy_url != nullptr) {
