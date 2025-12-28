@@ -115,7 +115,8 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                              std::function<void()> on_close_callback,
                              const std::string &title, int width, int height,
                              bool headless,
-                             const std::vector<UserScript> &user_scripts)
+                             const std::vector<UserScript> &user_scripts,
+                             const char* proxy_url)
     : method_channel_(method_channel),
       window_id_(window_id),
       on_close_callback_(std::move(on_close_callback)),
@@ -158,13 +159,28 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                      nullptr, nullptr));
   }
 
-  // 注册 window.webkit.messageHandlers.msgToNative.postMessage(value) 的回调函数
+  // Register callback for window.webkit.messageHandlers.msgToNative.postMessage(value)
   UserData* user_data = new UserData{window_id, method_channel_};
   g_signal_connect (manager, "script-message-received::msgToNative",
                   G_CALLBACK (handle_script_message), user_data);
   webkit_user_content_manager_register_script_message_handler (manager, "msgToNative");
 
-  webview_ = webkit_web_view_new_with_user_content_manager(manager);
+  // Configure proxy settings
+  auto *context = webkit_web_context_get_default();
+  auto *data_manager = webkit_web_context_get_website_data_manager(context);
+  if (proxy_url != nullptr) {
+    auto *proxy_settings = webkit_network_proxy_settings_new(proxy_url, nullptr);
+    webkit_website_data_manager_set_network_proxy_settings(
+        data_manager, WEBKIT_NETWORK_PROXY_MODE_CUSTOM, proxy_settings);
+  } else {
+    webkit_website_data_manager_set_network_proxy_settings(
+        data_manager, WEBKIT_NETWORK_PROXY_MODE_DEFAULT, nullptr);
+  }
+
+  webview_ = GTK_WIDGET(g_object_new(WEBKIT_TYPE_WEB_VIEW,
+      "web-context", context,
+      "user-content-manager", manager,
+      nullptr));
   g_signal_connect(G_OBJECT(webview_), "load-failed-with-tls-errors",
                    G_CALLBACK(on_load_failed_with_tls_errors), this);
   g_signal_connect(G_OBJECT(webview_), "create", G_CALLBACK(on_create), this);

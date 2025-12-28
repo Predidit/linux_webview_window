@@ -1,5 +1,14 @@
 import 'package:desktop_webview_window/src/user_script.dart';
 
+class ProxyConfiguration {
+  final String host;
+  final int port;
+
+  const ProxyConfiguration({required this.host, required this.port});
+
+  Map<String, dynamic> toMap() => {'host': host, 'port': port};
+}
+
 class CreateConfiguration {
   final int windowWidth;
   final int windowHeight;
@@ -20,6 +29,8 @@ class CreateConfiguration {
 
   final bool headless;
 
+  final ProxyConfiguration? proxy;
+
   const CreateConfiguration({
     this.windowWidth = 1280,
     this.windowHeight = 720,
@@ -31,6 +42,7 @@ class CreateConfiguration {
     this.openMaximized = false,
     this.userScripts = const [],
     this.headless = false,
+    this.proxy,
   });
 
   factory CreateConfiguration.platform() {
@@ -48,5 +60,6 @@ class CreateConfiguration {
         "openMaximized": openMaximized,
         "userScripts": userScripts.map((e) => e.toMap()).toList(),
         "headless": headless,
+        "proxy": proxy?.toMap(),
       };
 }
