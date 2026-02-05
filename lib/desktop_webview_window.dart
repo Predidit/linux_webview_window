@@ -55,76 +55,60 @@ class WebviewWindow {
   }) async {
     configuration ??= CreateConfiguration.platform();
     _init();
-    debugPrint('[Dart] Creating webview with configuration');
-    // print(configuration.toMap());
     final viewId = await _channel.invokeMethod(
       "create",
       configuration.toMap(),
     ) as int;
-    debugPrint('[Dart] Webview created with viewId: $viewId');
     final webview = WebviewImpl(viewId, _channel);
     _webviews.add(webview);
     return webview;
   }
 
   static Future<dynamic> _handleMethodCall(MethodCall call) async {
-    debugPrint('[Dart] _handleMethodCall: ${call.method}');
     final args = call.arguments as Map;
     final viewId = args['id'] as int;
-    debugPrint('[Dart] View ID: $viewId');
     final webview = _webviews
         .cast<WebviewImpl?>()
         .firstWhere((e) => e?.viewId == viewId, orElse: () => null);
     assert(webview != null);
     if (webview == null) {
-      debugPrint('[Dart] Warning: webview not found for viewId: $viewId');
       return;
     }
     switch (call.method) {
       case "onWindowClose":
-        debugPrint('[Dart] onWindowClose for viewId: $viewId');
         _webviews.remove(webview);
         webview.onClosed();
         break;
       case "onJavaScriptMessage":
-        debugPrint('[Dart] onJavaScriptMessage for viewId: $viewId');
         webview.onJavaScriptMessage(args['name'], args['body']);
         break;
       case "runJavaScriptTextInputPanelWithPrompt":
-        debugPrint('[Dart] runJavaScriptTextInputPanelWithPrompt for viewId: $viewId');
         return webview.onRunJavaScriptTextInputPanelWithPrompt(
           args['prompt'],
           args['defaultText'],
         );
       case "onHistoryChanged":
-        debugPrint('[Dart] onHistoryChanged for viewId: $viewId');
         webview.onHistoryChanged(args['canGoBack'], args['canGoForward']);
         break;
       case "onNavigationStarted":
-        debugPrint('[Dart] onNavigationStarted for viewId: $viewId');
         webview.onNavigationStarted();
         break;
       case "onUrlRequested":
         final url = args['url'] as String;
-        debugPrint('[Dart] onUrlRequested for viewId: $viewId, url: $url');
         final ret = webview.notifyUrlChanged(url);
         return ret;
       case "onWebMessageReceived":
         final message = args['message'] as String;
-        debugPrint('[Dart] onWebMessageReceived for viewId: $viewId, message: $message');
         webview.notifyWebMessageReceived(message);
         break;
       case "onJavascriptWebMessageReceived":
         final message = args['message'] as String;
-        debugPrint('[Dart] onJavascriptWebMessageReceived for viewId: $viewId, message: $message');
         webview.notifyWebMessageReceived(message);
         break;
       case "onNavigationCompleted":
-        debugPrint('[Dart] onNavigationCompleted for viewId: $viewId');
         webview.onNavigationCompleted();
         break;
       default:
-        debugPrint('[Dart] Unknown method: ${call.method}');
         return;
     }
   }

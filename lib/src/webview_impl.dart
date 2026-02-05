@@ -35,7 +35,6 @@ class WebviewImpl extends Webview {
   Future<void> get onClose => _closeCompleter.future;
 
   void onClosed() {
-    debugPrint('[Dart] WebviewImpl.onClosed for viewId: $viewId');
     _closed = true;
     _closeCompleter.complete();
   }
@@ -71,8 +70,6 @@ class WebviewImpl extends Webview {
   }
 
   void notifyWebMessageReceived(String message) {
-    debugPrint('[Dart] WebviewImpl.notifyWebMessageReceived for viewId: $viewId, message: $message');
-    debugPrint('[Dart] Number of callbacks registered: ${_onWebMessageReceivedCallbacks.length}');
     for (final callback in _onWebMessageReceivedCallbacks) {
       callback(message);
     }
@@ -128,7 +125,6 @@ class WebviewImpl extends Webview {
 
   @override
   void launch(String url, {bool triggerOnUrlRequestEvent = true}) async {
-    debugPrint('[Dart] WebviewImpl.launch for viewId: $viewId, url: $url');
     await channel.invokeMethod("launch", {
       "url": url,
       "viewId": viewId,
@@ -244,9 +240,7 @@ class WebviewImpl extends Webview {
 
   @override
   void addOnWebMessageReceivedCallback(OnWebMessageReceivedCallback callback) {
-    debugPrint('[Dart] WebviewImpl.addOnWebMessageReceivedCallback for viewId: $viewId');
     _onWebMessageReceivedCallbacks.add(callback);
-    debugPrint('[Dart] Total callbacks registered: ${_onWebMessageReceivedCallbacks.length}');
   }
 
   @override
@@ -257,9 +251,7 @@ class WebviewImpl extends Webview {
 
   @override
   void close() {
-    debugPrint('[Dart] WebviewImpl.close called for viewId: $viewId');
     if (_closed) {
-      debugPrint('[Dart] WebviewImpl.close - already closed for viewId: $viewId');
       return;
     }
     channel.invokeMethod("close", {"viewId": viewId});
@@ -267,7 +259,6 @@ class WebviewImpl extends Webview {
 
   @override
   Future<String?> evaluateJavaScript(String javaScript) async {
-    debugPrint('[Dart] WebviewImpl.evaluateJavaScript for viewId: $viewId');
     final dynamic result = await channel.invokeMethod("evaluateJavaScript", {
       "viewId": viewId,
       "javaScriptString": javaScript,
