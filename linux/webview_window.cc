@@ -16,23 +16,52 @@ struct UserData {
     FlMethodChannel* method_channel_;
 };
 
+// Helper struct for g_idle_add callbacks
+struct IdleCallbackData {
+    std::function<void()> callback;
+};
+
+// Generic idle callback wrapper
+static gboolean idle_callback_wrapper(gpointer user_data) {
+    auto* data = static_cast<IdleCallbackData*>(user_data);
+    g_print("[Native] Executing idle callback on main thread\n");
+    data->callback();
+    delete data;
+    return G_SOURCE_REMOVE;
+}
+
 void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data) {
+  g_print("[Native] handle_script_message called\n");
   JSCValue *value = webkit_javascript_result_get_js_value(js_result);
   if (jsc_value_is_string(value)) {
       char *message = jsc_value_to_string(value);
-      auto *args = fl_value_new_map();
       UserData* r_user_data = static_cast<UserData*>(user_data);
       int64_t window_id = r_user_data->window_id;
       FlMethodChannel* method_channel_ = r_user_data->method_channel_;
+      
+      g_print("[Native] Received JS message from window %ld: %s\n", window_id, message);
+      
+      // Need to copy data for idle callback
+      auto* args = fl_value_new_map();
       fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
       fl_value_set(args, fl_value_new_string("message"), fl_value_new_string(message));
-      fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                      "onJavascriptWebMessageReceived", args, nullptr,
-                                      nullptr, nullptr);
-      fl_value_unref(args);
+      fl_value_ref(args);
+      g_object_ref(method_channel_);
+      
+      // Schedule on main thread
+      auto* idle_data = new IdleCallbackData{[args, method_channel_]() {
+          g_print("[Native] Invoking onJavascriptWebMessageReceived on main thread\n");
+          fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
+                                          "onJavascriptWebMessageReceived", args, nullptr,
+                                          nullptr, nullptr);
+          fl_value_unref(args);
+          g_object_unref(method_channel_);
+      }};
+      g_idle_add(idle_callback_wrapper, idle_data);
+      
       g_free(message);
   } else {
-      g_print("Received non-string message\n");
+      g_print("[Native] Received non-string message\n");
   }
 }
 
@@ -121,21 +150,34 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
       window_id_(window_id),
       on_close_callback_(std::move(on_close_callback)),
       default_user_agent_() {
+  g_print("[Native] WebviewWindow constructor called for window %ld, title: %s\n", window_id_, title.c_str());
+  
   g_object_ref(method_channel_);
 
   window_ = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   g_signal_connect(G_OBJECT(window_), "destroy",
                    G_CALLBACK(+[](GtkWidget *, gpointer arg) {
                      auto *window = static_cast<WebviewWindow *>(arg);
+                     g_print("[Native] Window destroy signal received for window %ld\n", window->window_id_);
                      if (window->on_close_callback_) {
                        window->on_close_callback_();
                      }
                      auto *args = fl_value_new_map();
                      fl_value_set(args, fl_value_new_string("id"),
                                   fl_value_new_int(window->window_id_));
-                     fl_method_channel_invoke_method(
-                         FL_METHOD_CHANNEL(window->method_channel_),
-                         "onWindowClose", args, nullptr, nullptr, nullptr);
+                     fl_value_ref(args);
+                     g_object_ref(window->method_channel_);
+                     FlMethodChannel* channel = window->method_channel_;
+                     
+                     auto* idle_data = new IdleCallbackData{[args, channel]() {
+                         g_print("[Native] Invoking onWindowClose on main thread\n");
+                         fl_method_channel_invoke_method(
+                             FL_METHOD_CHANNEL(channel),
+                             "onWindowClose", args, nullptr, nullptr, nullptr);
+                         fl_value_unref(args);
+                         g_object_unref(channel);
+                     }};
+                     g_idle_add(idle_callback_wrapper, idle_data);
                    }),
                    this);
   gtk_window_set_title(GTK_WINDOW(window_), title.c_str());
@@ -201,22 +243,42 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
 }
 
 WebviewWindow::~WebviewWindow() {
+  g_print("[Native] ~WebviewWindow destructor called for window %ld\n", window_id_);
   g_object_unref(method_channel_);
   printf("~WebviewWindow\n");
 }
 
 void WebviewWindow::Navigate(const char *url) {
-  webkit_web_view_load_uri(WEBKIT_WEB_VIEW(webview_), url);
+  g_print("[Native] Navigate called for window %ld, url: %s\n", window_id_, url);
+  
+  // Copy url string for idle callback
+  std::string url_str(url);
+  GtkWidget* webview = webview_;
+  
+  auto* idle_data = new IdleCallbackData{[webview, url_str]() {
+      g_print("[Native] Executing Navigate on main thread\n");
+      webkit_web_view_load_uri(WEBKIT_WEB_VIEW(webview), url_str.c_str());
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
 }
 
 void WebviewWindow::RunJavaScriptWhenContentReady(const char *java_script) {
-  auto *manager =
-      webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(webview_));
-  webkit_user_content_manager_add_script(
-      manager,
-      webkit_user_script_new(java_script, WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
-                             WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
-                             nullptr, nullptr));
+  g_print("[Native] RunJavaScriptWhenContentReady called for window %ld\n", window_id_);
+  
+  std::string script_str(java_script);
+  GtkWidget* webview = webview_;
+  
+  auto* idle_data = new IdleCallbackData{[webview, script_str]() {
+      g_print("[Native] Executing RunJavaScriptWhenContentReady on main thread\n");
+      auto *manager =
+          webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(webview));
+      webkit_user_content_manager_add_script(
+          manager,
+          webkit_user_script_new(script_str.c_str(), WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
+                                 WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
+                                 nullptr, nullptr));
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
 }
 
 void WebviewWindow::SetApplicationNameForUserAgent(
@@ -226,23 +288,46 @@ void WebviewWindow::SetApplicationNameForUserAgent(
                                  (default_user_agent_ + app_name).c_str());
 }
 
-void WebviewWindow::Close() { gtk_widget_destroy(GTK_WIDGET(window_)); }
+void WebviewWindow::Close() { 
+  g_print("[Native] Close called for window %ld\n", window_id_);
+  
+  GtkWidget* window = window_;
+  
+  auto* idle_data = new IdleCallbackData{[window]() {
+      g_print("[Native] Executing Close (gtk_widget_destroy) on main thread\n");
+      gtk_widget_destroy(GTK_WIDGET(window));
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
+}
 
 void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
+  g_print("[Native] OnLoadChanged called for window %ld, event: %d\n", window_id_, load_event);
+  
   // notify history changed event.
   {
     auto can_go_back = webkit_web_view_can_go_back(WEBKIT_WEB_VIEW(webview_));
     auto can_go_forward =
         webkit_web_view_can_go_forward(WEBKIT_WEB_VIEW(webview_));
+    
     auto *args = fl_value_new_map();
     fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id_));
     fl_value_set(args, fl_value_new_string("canGoBack"),
                  fl_value_new_bool(can_go_back));
     fl_value_set(args, fl_value_new_string("canGoForward"),
                  fl_value_new_bool(can_go_forward));
-    fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                    "onHistoryChanged", args, nullptr, nullptr,
-                                    nullptr);
+    fl_value_ref(args);
+    g_object_ref(method_channel_);
+    FlMethodChannel* channel = method_channel_;
+    
+    auto* idle_data = new IdleCallbackData{[args, channel]() {
+        g_print("[Native] Invoking onHistoryChanged on main thread\n");
+        fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                        "onHistoryChanged", args, nullptr, nullptr,
+                                        nullptr);
+        fl_value_unref(args);
+        g_object_unref(channel);
+    }};
+    g_idle_add(idle_callback_wrapper, idle_data);
   }
 
   // notify load start/finished event.
@@ -251,18 +336,38 @@ void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
       auto *args = fl_value_new_map();
       fl_value_set(args, fl_value_new_string("id"),
                    fl_value_new_int(window_id_));
-      fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                      "onNavigationStarted", args, nullptr,
-                                      nullptr, nullptr);
+      fl_value_ref(args);
+      g_object_ref(method_channel_);
+      FlMethodChannel* channel = method_channel_;
+      
+      auto* idle_data = new IdleCallbackData{[args, channel]() {
+          g_print("[Native] Invoking onNavigationStarted on main thread\n");
+          fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                          "onNavigationStarted", args, nullptr,
+                                          nullptr, nullptr);
+          fl_value_unref(args);
+          g_object_unref(channel);
+      }};
+      g_idle_add(idle_callback_wrapper, idle_data);
       break;
     }
     case WEBKIT_LOAD_FINISHED: {
       auto *args = fl_value_new_map();
       fl_value_set(args, fl_value_new_string("id"),
                    fl_value_new_int(window_id_));
-      fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                      "onNavigationCompleted", args, nullptr,
-                                      nullptr, nullptr);
+      fl_value_ref(args);
+      g_object_ref(method_channel_);
+      FlMethodChannel* channel = method_channel_;
+      
+      auto* idle_data = new IdleCallbackData{[args, channel]() {
+          g_print("[Native] Invoking onNavigationCompleted on main thread\n");
+          fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                          "onNavigationCompleted", args, nullptr,
+                                          nullptr, nullptr);
+          fl_value_unref(args);
+          g_object_unref(channel);
+      }};
+      g_idle_add(idle_callback_wrapper, idle_data);
       break;
     }
     default:
@@ -271,19 +376,51 @@ void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
 }
 
 void WebviewWindow::GoForward() {
-  webkit_web_view_go_forward(WEBKIT_WEB_VIEW(webview_));
+  g_print("[Native] GoForward called for window %ld\n", window_id_);
+  
+  GtkWidget* webview = webview_;
+  
+  auto* idle_data = new IdleCallbackData{[webview]() {
+      g_print("[Native] Executing GoForward on main thread\n");
+      webkit_web_view_go_forward(WEBKIT_WEB_VIEW(webview));
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
 }
 
 void WebviewWindow::GoBack() {
-  webkit_web_view_go_back(WEBKIT_WEB_VIEW(webview_));
+  g_print("[Native] GoBack called for window %ld\n", window_id_);
+  
+  GtkWidget* webview = webview_;
+  
+  auto* idle_data = new IdleCallbackData{[webview]() {
+      g_print("[Native] Executing GoBack on main thread\n");
+      webkit_web_view_go_back(WEBKIT_WEB_VIEW(webview));
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
 }
 
 void WebviewWindow::Reload() {
-  webkit_web_view_reload(WEBKIT_WEB_VIEW(webview_));
+  g_print("[Native] Reload called for window %ld\n", window_id_);
+  
+  GtkWidget* webview = webview_;
+  
+  auto* idle_data = new IdleCallbackData{[webview]() {
+      g_print("[Native] Executing Reload on main thread\n");
+      webkit_web_view_reload(WEBKIT_WEB_VIEW(webview));
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
 }
 
 void WebviewWindow::StopLoading() {
-  webkit_web_view_stop_loading(WEBKIT_WEB_VIEW(webview_));
+  g_print("[Native] StopLoading called for window %ld\n", window_id_);
+  
+  GtkWidget* webview = webview_;
+  
+  auto* idle_data = new IdleCallbackData{[webview]() {
+      g_print("[Native] Executing StopLoading on main thread\n");
+      webkit_web_view_stop_loading(WEBKIT_WEB_VIEW(webview));
+  }};
+  g_idle_add(idle_callback_wrapper, idle_data);
 }
 
 FlValue *WebviewWindow::GetAllCookies() {
@@ -343,12 +480,25 @@ gboolean WebviewWindow::DecidePolicy(WebKitPolicyDecision *decision,
             navigation_decision);
     auto *request = webkit_navigation_action_get_request(navigation_action);
     auto *uri = webkit_uri_request_get_uri(request);
+    
+    g_print("[Native] DecidePolicy - URL requested: %s for window %ld\n", uri, window_id_);
+    
     auto *args = fl_value_new_map();
     fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id_));
     fl_value_set(args, fl_value_new_string("url"), fl_value_new_string(uri));
-    fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                    "onUrlRequested", args, nullptr, nullptr,
-                                    nullptr);
+    fl_value_ref(args);
+    g_object_ref(method_channel_);
+    FlMethodChannel* channel = method_channel_;
+    
+    auto* idle_data = new IdleCallbackData{[args, channel]() {
+        g_print("[Native] Invoking onUrlRequested on main thread\n");
+        fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                        "onUrlRequested", args, nullptr, nullptr,
+                                        nullptr);
+        fl_value_unref(args);
+        g_object_unref(channel);
+    }};
+    g_idle_add(idle_callback_wrapper, idle_data);
   }
   return false;
 }
