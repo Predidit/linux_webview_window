@@ -151,19 +151,34 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   g_signal_connect(G_OBJECT(window_), "destroy",
                    G_CALLBACK(+[](GtkWidget *, gpointer arg) {
                      auto *window = static_cast<WebviewWindow *>(arg);
-                     g_print("[Native] Window destroy signal received for window %ld (already on main thread)\n", window->window_id_);
+                     g_print("[Native] Window destroy signal received for window %ld, programmatic=%d\n", 
+                             window->window_id_, window->closing_programmatically_);
+                     
                      if (window->on_close_callback_) {
                        window->on_close_callback_();
                      }
-                     // destroy signal is already on main thread, no need for g_idle_add
-                     auto *args = fl_value_new_map();
-                     fl_value_set(args, fl_value_new_string("id"),
-                                  fl_value_new_int(window->window_id_));
-                     g_print("[Native] Invoking onWindowClose directly (destroy signal is synchronous)\n");
-                     fl_method_channel_invoke_method(
-                         FL_METHOD_CHANNEL(window->method_channel_),
-                         "onWindowClose", args, nullptr, nullptr, nullptr);
-                     fl_value_unref(args);
+                     
+                     // Only notify Dart if window was closed by user (not programmatically)
+                     if (!window->closing_programmatically_) {
+                       // Must use g_idle_add to avoid potential deadlock
+                       int64_t window_id = window->window_id_;
+                       FlMethodChannel* channel = window->method_channel_;
+                       g_object_ref(channel);
+                       
+                       auto* idle_data = new IdleCallbackData{([window_id, channel]() {
+                           g_print("[Native] Invoking onWindowClose (user closed window)\n");
+                           auto *args = fl_value_new_map();
+                           fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
+                           fl_method_channel_invoke_method(
+                               FL_METHOD_CHANNEL(channel),
+                               "onWindowClose", args, nullptr, nullptr, nullptr);
+                           fl_value_unref(args);
+                           g_object_unref(channel);
+                       })};
+                       g_idle_add(idle_callback_wrapper, idle_data);
+                     } else {
+                       g_print("[Native] Skipping onWindowClose notification (programmatic close)\n");
+                     }
                    }),
                    this);
   gtk_window_set_title(GTK_WINDOW(window_), title.c_str());
@@ -276,6 +291,8 @@ void WebviewWindow::SetApplicationNameForUserAgent(
 
 void WebviewWindow::Close() { 
   g_print("[Native] Close called for window %ld\n", window_id_);
+  
+  closing_programmatically_ = true;  // Mark as programmatic close
   
   GtkWidget* window = window_;
   
