@@ -291,6 +291,14 @@ static void webview_window_plugin_handle_method_call(
       return;
     }
     self->windows->at(window_id)->Close();
+    
+    auto *callback_args = fl_value_new_map();
+    fl_value_set(callback_args, fl_value_new_string("id"), fl_value_new_int(window_id));
+    fl_method_channel_invoke_method(FL_METHOD_CHANNEL(self->method_channel),
+                                    "onWindowClose", callback_args, nullptr,
+                                    nullptr, nullptr);
+    fl_value_unref(callback_args);
+    
     fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (strcmp(method, "evaluateJavaScript") == 0) {
     auto *args = fl_method_call_get_args(method_call);

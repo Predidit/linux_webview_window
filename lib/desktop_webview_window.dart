@@ -55,7 +55,6 @@ class WebviewWindow {
   }) async {
     configuration ??= CreateConfiguration.platform();
     _init();
-    // print(configuration.toMap());
     final viewId = await _channel.invokeMethod(
       "create",
       configuration.toMap(),
