@@ -77,7 +77,7 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   GtkWidget *window_ = nullptr;
   GtkWidget *webview_ = nullptr;
   
-  bool closing_programmatically_ = false;  // Track if Close() was called explicitly
+  bool closing_programmatically_ = false;
 };
 
 #endif  // WEBVIEW_WINDOW_LINUX_WEBVIEW_WINDOW_H_
