@@ -49,14 +49,14 @@ void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptRe
       g_object_ref(method_channel_);
       
       // Schedule on main thread
-      auto* idle_data = new IdleCallbackData{[args, method_channel_]() {
+      auto* idle_data = new IdleCallbackData{([args, method_channel_]() {
           g_print("[Native] Invoking onJavascriptWebMessageReceived on main thread\n");
           fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
                                           "onJavascriptWebMessageReceived", args, nullptr,
                                           nullptr, nullptr);
           fl_value_unref(args);
           g_object_unref(method_channel_);
-      }};
+      })};
       g_idle_add(idle_callback_wrapper, idle_data);
       
       g_free(message);
@@ -169,14 +169,14 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                      g_object_ref(window->method_channel_);
                      FlMethodChannel* channel = window->method_channel_;
                      
-                     auto* idle_data = new IdleCallbackData{[args, channel]() {
+                     auto* idle_data = new IdleCallbackData{([args, channel]() {
                          g_print("[Native] Invoking onWindowClose on main thread\n");
                          fl_method_channel_invoke_method(
                              FL_METHOD_CHANNEL(channel),
                              "onWindowClose", args, nullptr, nullptr, nullptr);
                          fl_value_unref(args);
                          g_object_unref(channel);
-                     }};
+                     })};
                      g_idle_add(idle_callback_wrapper, idle_data);
                    }),
                    this);
@@ -255,10 +255,10 @@ void WebviewWindow::Navigate(const char *url) {
   std::string url_str(url);
   GtkWidget* webview = webview_;
   
-  auto* idle_data = new IdleCallbackData{[webview, url_str]() {
+  auto* idle_data = new IdleCallbackData{([webview, url_str]() {
       g_print("[Native] Executing Navigate on main thread\n");
       webkit_web_view_load_uri(WEBKIT_WEB_VIEW(webview), url_str.c_str());
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -268,7 +268,7 @@ void WebviewWindow::RunJavaScriptWhenContentReady(const char *java_script) {
   std::string script_str(java_script);
   GtkWidget* webview = webview_;
   
-  auto* idle_data = new IdleCallbackData{[webview, script_str]() {
+  auto* idle_data = new IdleCallbackData{([webview, script_str]() {
       g_print("[Native] Executing RunJavaScriptWhenContentReady on main thread\n");
       auto *manager =
           webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(webview));
@@ -277,7 +277,7 @@ void WebviewWindow::RunJavaScriptWhenContentReady(const char *java_script) {
           webkit_user_script_new(script_str.c_str(), WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
                                  WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
                                  nullptr, nullptr));
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -293,10 +293,10 @@ void WebviewWindow::Close() {
   
   GtkWidget* window = window_;
   
-  auto* idle_data = new IdleCallbackData{[window]() {
+  auto* idle_data = new IdleCallbackData{([window]() {
       g_print("[Native] Executing Close (gtk_widget_destroy) on main thread\n");
       gtk_widget_destroy(GTK_WIDGET(window));
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -319,14 +319,14 @@ void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
     g_object_ref(method_channel_);
     FlMethodChannel* channel = method_channel_;
     
-    auto* idle_data = new IdleCallbackData{[args, channel]() {
+    auto* idle_data = new IdleCallbackData{([args, channel]() {
         g_print("[Native] Invoking onHistoryChanged on main thread\n");
         fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
                                         "onHistoryChanged", args, nullptr, nullptr,
                                         nullptr);
         fl_value_unref(args);
         g_object_unref(channel);
-    }};
+    })};
     g_idle_add(idle_callback_wrapper, idle_data);
   }
 
@@ -340,14 +340,14 @@ void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
       g_object_ref(method_channel_);
       FlMethodChannel* channel = method_channel_;
       
-      auto* idle_data = new IdleCallbackData{[args, channel]() {
+      auto* idle_data = new IdleCallbackData{([args, channel]() {
           g_print("[Native] Invoking onNavigationStarted on main thread\n");
           fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
                                           "onNavigationStarted", args, nullptr,
                                           nullptr, nullptr);
           fl_value_unref(args);
           g_object_unref(channel);
-      }};
+      })};
       g_idle_add(idle_callback_wrapper, idle_data);
       break;
     }
@@ -359,14 +359,14 @@ void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
       g_object_ref(method_channel_);
       FlMethodChannel* channel = method_channel_;
       
-      auto* idle_data = new IdleCallbackData{[args, channel]() {
+      auto* idle_data = new IdleCallbackData{([args, channel]() {
           g_print("[Native] Invoking onNavigationCompleted on main thread\n");
           fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
                                           "onNavigationCompleted", args, nullptr,
                                           nullptr, nullptr);
           fl_value_unref(args);
           g_object_unref(channel);
-      }};
+      })};
       g_idle_add(idle_callback_wrapper, idle_data);
       break;
     }
@@ -380,10 +380,10 @@ void WebviewWindow::GoForward() {
   
   GtkWidget* webview = webview_;
   
-  auto* idle_data = new IdleCallbackData{[webview]() {
+  auto* idle_data = new IdleCallbackData{([webview]() {
       g_print("[Native] Executing GoForward on main thread\n");
       webkit_web_view_go_forward(WEBKIT_WEB_VIEW(webview));
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -392,10 +392,10 @@ void WebviewWindow::GoBack() {
   
   GtkWidget* webview = webview_;
   
-  auto* idle_data = new IdleCallbackData{[webview]() {
+  auto* idle_data = new IdleCallbackData{([webview]() {
       g_print("[Native] Executing GoBack on main thread\n");
       webkit_web_view_go_back(WEBKIT_WEB_VIEW(webview));
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -404,10 +404,10 @@ void WebviewWindow::Reload() {
   
   GtkWidget* webview = webview_;
   
-  auto* idle_data = new IdleCallbackData{[webview]() {
+  auto* idle_data = new IdleCallbackData{([webview]() {
       g_print("[Native] Executing Reload on main thread\n");
       webkit_web_view_reload(WEBKIT_WEB_VIEW(webview));
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -416,10 +416,10 @@ void WebviewWindow::StopLoading() {
   
   GtkWidget* webview = webview_;
   
-  auto* idle_data = new IdleCallbackData{[webview]() {
+  auto* idle_data = new IdleCallbackData{([webview]() {
       g_print("[Native] Executing StopLoading on main thread\n");
       webkit_web_view_stop_loading(WEBKIT_WEB_VIEW(webview));
-  }};
+  })};
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
@@ -490,14 +490,14 @@ gboolean WebviewWindow::DecidePolicy(WebKitPolicyDecision *decision,
     g_object_ref(method_channel_);
     FlMethodChannel* channel = method_channel_;
     
-    auto* idle_data = new IdleCallbackData{[args, channel]() {
+    auto* idle_data = new IdleCallbackData{([args, channel]() {
         g_print("[Native] Invoking onUrlRequested on main thread\n");
         fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
                                         "onUrlRequested", args, nullptr, nullptr,
                                         nullptr);
         fl_value_unref(args);
         g_object_unref(channel);
-    }};
+    })};
     g_idle_add(idle_callback_wrapper, idle_data);
   }
   return false;
