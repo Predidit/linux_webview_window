@@ -298,41 +298,60 @@ void WebviewWindow::OnLoadChanged(WebKitLoadEvent load_event) {
     auto can_go_back = webkit_web_view_can_go_back(WEBKIT_WEB_VIEW(webview_));
     auto can_go_forward =
         webkit_web_view_can_go_forward(WEBKIT_WEB_VIEW(webview_));
-    
-    auto *args = fl_value_new_map();
-    fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id_));
-    fl_value_set(args, fl_value_new_string("canGoBack"),
-                 fl_value_new_bool(can_go_back));
-    fl_value_set(args, fl_value_new_string("canGoForward"),
-                 fl_value_new_bool(can_go_forward));
-    
-    fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                    "onHistoryChanged", args, nullptr, nullptr,
-                                    nullptr);
-    fl_value_unref(args);
+
+    FlMethodChannel* channel = method_channel_;
+    g_object_ref(channel);
+    int64_t window_id = window_id_;
+
+    auto* idle_data = new IdleCallbackData{([channel, window_id, can_go_back, can_go_forward]() {
+        auto *args = fl_value_new_map();
+        fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
+        fl_value_set(args, fl_value_new_string("canGoBack"),
+                     fl_value_new_bool(can_go_back));
+        fl_value_set(args, fl_value_new_string("canGoForward"),
+                     fl_value_new_bool(can_go_forward));
+        fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                        "onHistoryChanged", args, nullptr, nullptr,
+                                        nullptr);
+        fl_value_unref(args);
+        g_object_unref(channel);
+    })};
+    g_idle_add_full(G_PRIORITY_LOW, idle_callback_wrapper, idle_data, nullptr);
   }
 
   switch (load_event) {
     case WEBKIT_LOAD_STARTED: {
-      auto *args = fl_value_new_map();
-      fl_value_set(args, fl_value_new_string("id"),
-                   fl_value_new_int(window_id_));
-      
-      fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                      "onNavigationStarted", args, nullptr,
-                                      nullptr, nullptr);
-      fl_value_unref(args);
+      FlMethodChannel* channel = method_channel_;
+      g_object_ref(channel);
+      int64_t window_id = window_id_;
+
+      auto* idle_data = new IdleCallbackData{([channel, window_id]() {
+          auto *args = fl_value_new_map();
+          fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
+          fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                          "onNavigationStarted", args, nullptr,
+                                          nullptr, nullptr);
+          fl_value_unref(args);
+          g_object_unref(channel);
+      })};
+      g_idle_add_full(G_PRIORITY_LOW, idle_callback_wrapper, idle_data, nullptr);
       break;
     }
     case WEBKIT_LOAD_FINISHED: {
-      auto *args = fl_value_new_map();
-      fl_value_set(args, fl_value_new_string("id"),
-                   fl_value_new_int(window_id_));
-      
-      fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                      "onNavigationCompleted", args, nullptr,
-                                      nullptr, nullptr);
-      fl_value_unref(args);
+      FlMethodChannel* channel = method_channel_;
+      g_object_ref(channel);
+      int64_t window_id = window_id_;
+
+      auto* idle_data = new IdleCallbackData{([channel, window_id]() {
+          auto *args = fl_value_new_map();
+          fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
+          fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                          "onNavigationCompleted", args, nullptr,
+                                          nullptr, nullptr);
+          fl_value_unref(args);
+          g_object_unref(channel);
+      })};
+      g_idle_add_full(G_PRIORITY_LOW, idle_callback_wrapper, idle_data, nullptr);
       break;
     }
     default:
@@ -396,15 +415,23 @@ gboolean WebviewWindow::DecidePolicy(WebKitPolicyDecision *decision,
             navigation_decision);
     auto *request = webkit_navigation_action_get_request(navigation_action);
     auto *uri = webkit_uri_request_get_uri(request);
-    
-    auto *args = fl_value_new_map();
-    fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id_));
-    fl_value_set(args, fl_value_new_string("url"), fl_value_new_string(uri));
-    
-    fl_method_channel_invoke_method(FL_METHOD_CHANNEL(method_channel_),
-                                    "onUrlRequested", args, nullptr, nullptr,
-                                    nullptr);
-    fl_value_unref(args);
+
+    FlMethodChannel* channel = method_channel_;
+    g_object_ref(channel);
+    int64_t window_id = window_id_;
+    std::string uri_str(uri);
+
+    auto* idle_data = new IdleCallbackData{([channel, window_id, uri_str]() {
+        auto *args = fl_value_new_map();
+        fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
+        fl_value_set(args, fl_value_new_string("url"), fl_value_new_string(uri_str.c_str()));
+        fl_method_channel_invoke_method(FL_METHOD_CHANNEL(channel),
+                                        "onUrlRequested", args, nullptr, nullptr,
+                                        nullptr);
+        fl_value_unref(args);
+        g_object_unref(channel);
+    })};
+    g_idle_add_full(G_PRIORITY_LOW, idle_callback_wrapper, idle_data, nullptr);
   }
   return false;
 }
