@@ -263,19 +263,7 @@ static void webview_window_plugin_handle_method_call(
       return;
     }
 
-    FlValue *data = nullptr;
-
-    data = self->windows->at(window_id)->GetAllCookies();
-
-    if (data == nullptr) {
-      fl_method_call_respond_error(method_call, "0", "get all cookies failed",
-                                   nullptr, nullptr);
-      return;
-    }
-
-
-    fl_method_call_respond_success(method_call, data, nullptr);
-    fl_value_unref(data);
+    self->windows->at(window_id)->GetAllCookies(method_call);
   } else if (strcmp(method, "close") == 0) {
     auto *args = fl_method_call_get_args(method_call);
     if (fl_value_get_type(args) != FL_VALUE_TYPE_MAP) {

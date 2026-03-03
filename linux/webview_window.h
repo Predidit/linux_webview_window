@@ -15,11 +15,6 @@
 #include <string>
 #include <vector>
 
-typedef struct {
-    GMainLoop *loop;
-    GList *cookies;
-} CookieData;
-
 struct UserScript {
   std::string source;
   int injection_time;
@@ -27,11 +22,6 @@ struct UserScript {
 };
 
 void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptResult *js_result, gpointer user_data);
-
-void get_cookies_callback(WebKitCookieManager *manager, GAsyncResult *res,
-                          gpointer user_data);
-
-GList *get_cookies_sync(WebKitWebView *web_view);
 
 class WebviewWindow {
  public:
@@ -60,7 +50,7 @@ WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
 
   void StopLoading();
 
-  FlValue* GetAllCookies();
+  void GetAllCookies(FlMethodCall *call);
 
   gboolean DecidePolicy(WebKitPolicyDecision *decision,
                         WebKitPolicyDecisionType type);

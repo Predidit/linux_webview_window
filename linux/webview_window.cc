@@ -49,47 +49,64 @@ void handle_script_message(WebKitUserContentManager *manager, WebKitJavascriptRe
   }
 }
 
-void get_cookies_callback(WebKitCookieManager *manager, GAsyncResult *res,
-                          gpointer user_data) {
-  CookieData *data = (CookieData *)user_data;
-  GError *error = NULL;
+// Data passed to the async cookie callback.
+struct GetCookiesCallbackData {
+  FlMethodCall *call;
+};
 
-  GList *cookies =
-      webkit_cookie_manager_get_cookies_finish(manager, res, &error);
-  if (error != NULL) {
-    g_print("Error getting cookies: %s\n", error->message);
+static void on_get_cookies_finish(WebKitCookieManager *manager,
+                                  GAsyncResult *res, gpointer user_data) {
+  auto *data = static_cast<GetCookiesCallbackData *>(user_data);
+  GError *error = nullptr;
+
+  GList *cookies = webkit_cookie_manager_get_cookies_finish(manager, res, &error);
+  if (error != nullptr) {
+    fl_method_call_respond_error(data->call, "0", error->message, nullptr, nullptr);
     g_error_free(error);
-    data->cookies = NULL;
-  } else {
-    data->cookies = cookies;
+    g_object_unref(data->call);
+    delete data;
+    return;
   }
 
-  g_main_loop_quit(data->loop);
-}
+  auto *cookie_list = fl_value_new_list();
+  for (GList *l = cookies; l; l = l->next) {
+    SoupCookie *cookie = static_cast<SoupCookie *>(l->data);
+    auto *cookie_map = fl_value_new_map();
 
-GList *get_cookies_sync(WebKitWebView *web_view) {
-  WebKitCookieManager *cookie_manager;
-  GMainLoop *loop;
-  CookieData data = {0};
+    fl_value_set_string_take(cookie_map, "name",
+                             fl_value_new_string(soup_cookie_get_name(cookie)));
+    fl_value_set_string_take(cookie_map, "value",
+                             fl_value_new_string(soup_cookie_get_value(cookie)));
+    fl_value_set_string_take(cookie_map, "domain",
+                             fl_value_new_string(soup_cookie_get_domain(cookie)));
+    fl_value_set_string_take(cookie_map, "path",
+                             fl_value_new_string(soup_cookie_get_path(cookie)));
 
-  cookie_manager = webkit_web_context_get_cookie_manager(
-      webkit_web_view_get_context(web_view));
-  loop = g_main_loop_new(NULL, FALSE);
-  data.loop = loop;
+    GDateTime *expires_dt = soup_cookie_get_expires(cookie);
+    if (expires_dt != nullptr) {
+      fl_value_set_string_take(cookie_map, "expires",
+                               fl_value_new_float(g_date_time_get_seconds(expires_dt)));
+    } else {
+      fl_value_set_string_take(cookie_map, "expires", fl_value_new_null());
+    }
 
-  const gchar *uri = webkit_web_view_get_uri(web_view);
+    fl_value_set_string_take(cookie_map, "httpOnly",
+                             fl_value_new_bool(soup_cookie_get_http_only(cookie)));
+    fl_value_set_string_take(cookie_map, "secure",
+                             fl_value_new_bool(soup_cookie_get_secure(cookie)));
+    fl_value_set_string_take(cookie_map, "sessionOnly",
+                             fl_value_new_bool(false));
 
-  // Start the asynchronous operation
-  webkit_cookie_manager_get_cookies(cookie_manager, uri, NULL,
-                                    (GAsyncReadyCallback)get_cookies_callback,
-                                    &data);
+    fl_value_append(cookie_list, cookie_map);
+    fl_value_unref(cookie_map);
+    soup_cookie_free(cookie);
+  }
+  g_list_free(cookies);
 
-  // Run the main loop until the callback is called
-  g_main_loop_run(loop);
-
-  g_main_loop_unref(loop);
-
-  return data.cookies;
+  fl_method_call_respond_success(data->call, cookie_list, nullptr);
+  fl_value_unref(cookie_list);
+  g_object_unref(data->call);
+  delete data;
 }
 
 namespace {
@@ -359,52 +376,15 @@ void WebviewWindow::StopLoading() {
   g_idle_add(idle_callback_wrapper, idle_data);
 }
 
-FlValue *WebviewWindow::GetAllCookies() {
-  GList *cookies = get_cookies_sync(WEBKIT_WEB_VIEW(webview_));
+void WebviewWindow::GetAllCookies(FlMethodCall *call) {
+  auto *cookie_manager = webkit_web_context_get_cookie_manager(
+      webkit_web_view_get_context(WEBKIT_WEB_VIEW(webview_)));
+  const gchar *uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(webview_));
 
-  g_autoptr(FlValue) fl_cookie_list = fl_value_new_list();
-
-  FlValue* cookie_list = fl_value_ref(fl_cookie_list);
-
-  for (GList *l = cookies; l; l = l->next) {
-    SoupCookie *cookie = (SoupCookie *)l->data;
-    g_autoptr(FlValue) cookie_map = fl_value_new_map();
-
-    fl_value_set_string_take(cookie_map, "name",
-                             fl_value_new_string(soup_cookie_get_name(cookie)));
-    fl_value_set_string_take(
-        cookie_map, "value",
-        fl_value_new_string(soup_cookie_get_value(cookie)));
-    fl_value_set_string_take(
-        cookie_map, "domain",
-        fl_value_new_string(soup_cookie_get_domain(cookie)));
-    fl_value_set_string_take(cookie_map, "path",
-                             fl_value_new_string(soup_cookie_get_path(cookie)));
-
-    gdouble expires = g_date_time_get_seconds(soup_cookie_get_expires(cookie));
-
-    if (expires >= 0) {
-      fl_value_set_string_take(cookie_map, "expires",
-                               fl_value_new_float(expires));
-    } else {
-      fl_value_set_string_take(cookie_map, "expires", fl_value_new_null());
-    }
-
-    fl_value_set_string_take(
-        cookie_map, "httpOnly",
-        fl_value_new_bool(soup_cookie_get_http_only(cookie)));
-    fl_value_set_string_take(cookie_map, "secure",
-                             fl_value_new_bool(soup_cookie_get_secure(cookie)));
-    fl_value_set_string_take(cookie_map, "sessionOnly",
-                             fl_value_new_bool(false));
-
-    fl_value_append(cookie_list, cookie_map);
-    soup_cookie_free(cookie);
-  }
-
-  g_free(cookies);
-
-  return cookie_list;
+  auto *data = new GetCookiesCallbackData{static_cast<FlMethodCall *>(g_object_ref(call))};
+  webkit_cookie_manager_get_cookies(
+      cookie_manager, uri, nullptr,
+      reinterpret_cast<GAsyncReadyCallback>(on_get_cookies_finish), data);
 }
 
 gboolean WebviewWindow::DecidePolicy(WebKitPolicyDecision *decision,

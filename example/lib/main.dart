@@ -140,6 +140,35 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  Future<void> _getCookiesOnSelected() async {
+    if (_selectedId == null) {
+      _log('No webview selected');
+      return;
+    }
+    final entry = _entries.firstWhere((e) => e.id == _selectedId,
+        orElse: () => throw 'not found');
+    try {
+      final List<WebviewCookie> cookies =
+          await entry.controller.getAllCookies() as List<WebviewCookie>;
+      if (cookies.isEmpty) {
+        _log('Cookies on ${entry.id}: (none)');
+      } else {
+        _log('Cookies on ${entry.id} (${cookies.length} total):');
+        for (final c in cookies) {
+          _log(
+              '  [${c.domain}] ${c.name}=${c.value}'
+              '${c.httpOnly ? ' httpOnly' : ''}'
+              '${c.secure ? ' secure' : ''}'
+              '${c.sessionOnly ? ' session' : ''}'
+              '${c.expires != null ? ' expires=${c.expires!.toIso8601String()}' : ''}',
+          );
+        }
+      }
+    } catch (e) {
+      _log('Get cookies error on ${entry.id}: $e');
+    }
+  }
+
   Future<void> _closeAll() async {
     final copy = List<_WebviewEntry>.from(_entries);
     for (final e in copy) {
@@ -260,6 +289,13 @@ class _MyAppState extends State<MyApp> {
                                 }
                               },
                               child: const Text('Run on All'),
+                            ),
+                          ]),
+                          const SizedBox(height: 8),
+                          Row(children: [
+                            ElevatedButton(
+                              onPressed: _entries.isEmpty ? null : _getCookiesOnSelected,
+                              child: const Text('Get Cookies'),
                             ),
                           ]),
                           const SizedBox(height: 12),

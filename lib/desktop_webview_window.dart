@@ -14,6 +14,7 @@ import 'src/create_configuration.dart';
 import 'src/webview.dart';
 import 'src/webview_impl.dart';
 
+export 'src/cookie.dart';
 export 'src/create_configuration.dart';
 export 'src/user_script.dart';
 export 'src/user_script_injection_time.dart';
