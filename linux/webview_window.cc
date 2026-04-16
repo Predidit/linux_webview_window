@@ -140,15 +140,18 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   g_signal_connect(G_OBJECT(window_), "destroy",
                    G_CALLBACK(+[](GtkWidget *, gpointer arg) {
                      auto *window = static_cast<WebviewWindow *>(arg);
+                     
+                     // Prevent UAF if window is closed by user.
+                     bool closing_programmatically = window->closing_programmatically_;
+                     int64_t window_id = window->window_id_;
+                     FlMethodChannel* channel = window->method_channel_;
+                     g_object_ref(channel);
+                     
                      if (window->on_close_callback_) {
                        window->on_close_callback_();
                      }
                      
-                     if (!window->closing_programmatically_) {
-                       int64_t window_id = window->window_id_;
-                       FlMethodChannel* channel = window->method_channel_;
-                       g_object_ref(channel);
-                       
+                     if (!closing_programmatically) {                     
                        auto* idle_data = new IdleCallbackData{([window_id, channel]() {
                            auto *args = fl_value_new_map();
                            fl_value_set(args, fl_value_new_string("id"), fl_value_new_int(window_id));
@@ -159,6 +162,8 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
                            g_object_unref(channel);
                        })};
                        g_idle_add(idle_callback_wrapper, idle_data);
+                     } else {
+                       g_object_unref(channel);
                      }
                    }),
                    this);
