@@ -3,8 +3,6 @@ import 'dart:convert';
 
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 void main(List<String> args) {
   debugPrint('args: $args');
@@ -66,18 +64,10 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  Future<String> _getWebViewPath() async {
-    final document = await getApplicationDocumentsDirectory();
-    return p.join(document.path, 'desktop_webview_window');
-  }
-
   Future<void> _createWebview({String? url}) async {
     try {
       final controller = await WebviewWindow.create(
-        configuration: CreateConfiguration(
-          headless: _headless,
-          userDataFolderWindows: await _getWebViewPath(),
-        ),
+        configuration: CreateConfiguration(headless: _headless),
       );
 
       final id = _nextId++;

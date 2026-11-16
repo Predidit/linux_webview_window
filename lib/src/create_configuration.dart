@@ -1,5 +1,7 @@
-import 'package:desktop_webview_window/src/user_script.dart';
+import 'user_script.dart';
 
+/// An HTTP proxy. It is applied to every webview of the application, not
+/// only to the one it is passed to.
 class ProxyConfiguration {
   final String host;
   final int port;
@@ -13,20 +15,13 @@ class CreateConfiguration {
   final int windowWidth;
   final int windowHeight;
 
-  /// Position of the top left point of the webview window
-  final int windowPosX;
-  final int windowPosY;
-
   /// the title of window
   final String title;
 
-  final String userDataFolderWindows;
-
-  final bool useWindowPositionAndSize;
-  final bool openMaximized;
-
+  /// Scripts that are injected into every page loaded by the webview.
   final List<UserScript> userScripts;
 
+  /// Whether to create the webview without showing its window.
   final bool headless;
 
   final ProxyConfiguration? proxy;
@@ -34,30 +29,16 @@ class CreateConfiguration {
   const CreateConfiguration({
     this.windowWidth = 1280,
     this.windowHeight = 720,
-    this.windowPosX = 0,
-    this.windowPosY = 0,
     this.title = "",
-    this.userDataFolderWindows = 'webview_window_WebView2',
-    this.useWindowPositionAndSize = false,
-    this.openMaximized = false,
     this.userScripts = const [],
     this.headless = false,
     this.proxy,
   });
 
-  factory CreateConfiguration.platform() {
-    return CreateConfiguration();
-  }
-
-  Map toMap() => {
+  Map<String, dynamic> toMap() => {
         "windowWidth": windowWidth,
         "windowHeight": windowHeight,
-        "windowPosX": windowPosX,
-        "windowPosY": windowPosY,
         "title": title,
-        "userDataFolderWindows": userDataFolderWindows,
-        "useWindowPositionAndSize": useWindowPositionAndSize,
-        "openMaximized": openMaximized,
         "userScripts": userScripts.map((e) => e.toMap()).toList(),
         "headless": headless,
         "proxy": proxy?.toMap(),
