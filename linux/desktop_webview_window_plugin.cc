@@ -144,16 +144,15 @@ void create_window(WebviewWindowPlugin *self, FlValue *args,
   }
 
   auto window_id = self->next_window_id++;
-  // Every window keeps the plugin alive until it has been closed.
-  g_object_ref(self);
+  // The callback may capture |self| without a reference: the windows are
+  // owned by the plugin, and a window never runs it after being deleted.
+  // Taking a reference here would keep the plugin, and with it every window
+  // that is still open, alive after the engine has shut down.
   self->windows->emplace(
       window_id,
       std::make_unique<WebviewWindow>(
           self->method_channel, window_id,
-          [self, window_id]() {
-            self->windows->erase(window_id);
-            g_object_unref(self);
-          },
+          [self, window_id]() { self->windows->erase(window_id); },
           title, width, height, headless,
           parse_user_scripts(fl_value_lookup_string(args, "userScripts")),
           proxy_url));
@@ -247,7 +246,8 @@ void method_call_cb(FlMethodChannel *channel, FlMethodCall *method_call,
 
 static void webview_window_plugin_dispose(GObject *object) {
   auto *self = WEBVIEW_WINDOW_PLUGIN(object);
-  // dispose() may run more than once.
+  // Destroys the windows that are still open, e.g. headless ones nobody
+  // closed before the engine shut down. dispose() may run more than once.
   delete self->windows;
   self->windows = nullptr;
   g_clear_object(&self->method_channel);
