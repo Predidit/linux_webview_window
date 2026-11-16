@@ -1,28 +1,23 @@
-// You have generated a new plugin project without
-// specifying the `--platforms` flag. A plugin project supports no platforms is generated.
-// To add platforms, run `flutter create -t plugin --platforms <platforms> .` under the same
-// directory. You can also find a detailed instruction on how to add platforms in the `pubspec.yaml` at https://flutter.dev/docs/development/packages-and-plugins/developing-packages#plugin-platforms.
-
 import 'dart:async';
-import 'dart:io';
 
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
 
 import 'src/create_configuration.dart';
 import 'src/webview.dart';
 import 'src/webview_impl.dart';
 
+export 'src/cookie.dart';
 export 'src/create_configuration.dart';
 export 'src/user_script.dart';
 export 'src/user_script_injection_time.dart';
 export 'src/webview.dart';
 
-final List<WebviewImpl> _webviews = [];
-
 class WebviewWindow {
   static const MethodChannel _channel = MethodChannel('webview_window');
+
+  /// The open webviews, by view id.
+  static final Map<int, WebviewImpl> _webviews = {};
 
   static bool _inited = false;
 
@@ -33,7 +28,7 @@ class WebviewWindow {
     _inited = true;
     _channel.setMethodCallHandler((call) async {
       try {
-        return await _handleMethodCall(call);
+        _handleMethodCall(call);
       } catch (e, s) {
         debugPrint("method: ${call.method} args: ${call.arguments}");
         debugPrint('handleMethodCall error: $e $s');
@@ -42,106 +37,55 @@ class WebviewWindow {
   }
 
   /// Check if WebView runtime is available on the current devices.
-  static Future<bool> isWebviewAvailable() async {
-    if (Platform.isWindows) {
-      final ret = await _channel.invokeMethod<bool>('isWebviewAvailable');
-      return ret == true;
-    }
-    return true;
-  }
+  ///
+  /// WebKitGTK is linked into the plugin, so this is always true.
+  static Future<bool> isWebviewAvailable() async => true;
 
   static Future<Webview> create({
-    CreateConfiguration? configuration,
+    CreateConfiguration configuration = const CreateConfiguration(),
   }) async {
-    configuration ??= CreateConfiguration.platform();
     _init();
     final viewId = await _channel.invokeMethod(
       "create",
       configuration.toMap(),
     ) as int;
     final webview = WebviewImpl(viewId, _channel);
-    _webviews.add(webview);
+    _webviews[viewId] = webview;
     return webview;
   }
 
-  static Future<dynamic> _handleMethodCall(MethodCall call) async {
+  static void _handleMethodCall(MethodCall call) {
     final args = call.arguments as Map;
-    final viewId = args['id'] as int;
-    final webview = _webviews
-        .cast<WebviewImpl?>()
-        .firstWhere((e) => e?.viewId == viewId, orElse: () => null);
-    assert(webview != null);
+    final webview = _webviews[args['id'] as int];
+    // Events may still arrive for a webview that has just been closed.
     if (webview == null) {
       return;
     }
     switch (call.method) {
       case "onWindowClose":
-        _webviews.remove(webview);
+        _webviews.remove(webview.viewId);
         webview.onClosed();
         break;
-      case "onJavaScriptMessage":
-        webview.onJavaScriptMessage(args['name'], args['body']);
-        break;
-      case "runJavaScriptTextInputPanelWithPrompt":
-        return webview.onRunJavaScriptTextInputPanelWithPrompt(
-          args['prompt'],
-          args['defaultText'],
-        );
       case "onHistoryChanged":
         webview.onHistoryChanged(args['canGoBack'], args['canGoForward']);
         break;
       case "onNavigationStarted":
         webview.onNavigationStarted();
         break;
-      case "onUrlRequested":
-        final url = args['url'] as String;
-        final ret = webview.notifyUrlChanged(url);
-        return ret;
-      case "onWebMessageReceived":
-        final message = args['message'] as String;
-        webview.notifyWebMessageReceived(message);
-        break;
-      case "onJavascriptWebMessageReceived":
-        final message = args['message'] as String;
-        webview.notifyWebMessageReceived(message);
-        break;
       case "onNavigationCompleted":
         webview.onNavigationCompleted();
         break;
-      default:
-        return;
+      case "onUrlRequested":
+        webview.onUrlRequested(args['url'] as String);
+        break;
+      case "onJavascriptWebMessageReceived":
+        webview.onWebMessageReceived(args['message'] as String);
+        break;
     }
   }
 
-  /// Clear all cookies and storage.
-  static Future<void> clearAll({
-    String userDataFolderWindows = 'webview_window_WebView2',
-  }) async {
+  /// Close all webview windows, then clear all cookies and storage.
+  static Future<void> clearAll() async {
     await _channel.invokeMethod('clearAll');
-
-    // FIXME(boyan01) Move the logic to windows platform if WebView2 provider a way to clean caches.
-    // https://docs.microsoft.com/en-us/microsoft-edge/webview2/concepts/user-data-folder#create-user-data-folders
-    if (Platform.isWindows) {
-      final Directory webview2Dir;
-      if (p.isAbsolute(userDataFolderWindows)) {
-        webview2Dir = Directory(userDataFolderWindows);
-      } else {
-        webview2Dir = Directory(p.join(
-            p.dirname(Platform.resolvedExecutable), userDataFolderWindows));
-      }
-
-      if (await (webview2Dir.exists())) {
-        for (var i = 0; i <= 4; i++) {
-          try {
-            await webview2Dir.delete(recursive: true);
-            break;
-          } catch (e) {
-            debugPrint("delete cache failed. retring.... $e");
-          }
-          // wait to ensure all web window has been closed and file handle has been release.
-          await Future.delayed(const Duration(seconds: 1));
-        }
-      }
-    }
   }
 }

@@ -1,16 +1,14 @@
-import 'package:desktop_webview_window/src/cookie.dart';
 import 'package:flutter/foundation.dart';
 
-/// Handle custom message from JavaScript in your app.
-typedef JavaScriptMessageHandler = void Function(String name, dynamic body);
-
-typedef PromptHandler = String Function(String prompt, String defaultText);
+import 'cookie.dart';
 
 typedef OnHistoryChangedCallback = void Function(
     bool canGoBack, bool canGoForward);
 
 /// Callback when WebView start to load a URL.
 /// [url] is the URL string.
+///
+/// The returned value is not used: the navigation always proceeds.
 typedef OnUrlRequestCallback = bool Function(String url);
 
 /// Callback when WebView receives a web message
@@ -18,31 +16,18 @@ typedef OnUrlRequestCallback = bool Function(String url);
 typedef OnWebMessageReceivedCallback = void Function(String message);
 
 abstract class Webview {
+  /// Completes when the webview window has been closed, either by [close] or
+  /// by the user.
   Future<void> get onClose;
 
   ///  true if the webview is currently loading a page.
   ValueListenable<bool> get isNavigating;
 
-  /// Install a message handler that you can call from your Javascript code.
-  ///
-  /// available: macOS (10.10+)
-  void registerJavaScriptMessageHandler(
-      String name, JavaScriptMessageHandler handler);
-
-  /// available: macOS
-  void unregisterJavaScriptMessageHandler(String name);
-
-  /// available: macOS
-  void setPromptHandler(PromptHandler? handler);
-
   /// Navigates to the given URL.
-  void launch(String url, {bool triggerOnUrlRequestEvent = true});
+  void launch(String url);
 
-  /// change webview theme.
-  ///
-  /// available only: macOS (Brightness.dark only 10.14+)
-  void setBrightness(Brightness? brightness);
-
+  /// Adds a script that runs in the top frame of every page, before the page
+  /// starts to load.
   void addScriptToExecuteOnDocumentCreated(String javaScript);
 
   /// Append a string to the webview's user-agent.
@@ -54,32 +39,19 @@ abstract class Webview {
   /// Navigate to the next page in the history.
   Future<void> forward();
 
-  /// Show or hide webview window
-  Future<void> setWebviewWindowVisibility(bool visible);
-
-  /// Move and Resize the webview window
-  Future<void> moveWebviewWindow(int left, int top, int width, int height);
-
-  /// Activates the webview window (giving it the focus)
-  Future<void> bringToForeground({bool maximized = false});
-
-  /// get position, extents and maximization info of the webview window
-  Future<Map<dynamic, dynamic>?> getPositionalParameters();
-
   /// Reload the current page.
   Future<void> reload();
 
   /// Stop all navigations and pending resource fetches.
   Future<void> stop();
 
-  /// Opens the Browser DevTools in a separate window
-  Future<void> openDevToolsWindow();
-
   /// Register a callback that will be invoked when the webview history changes.
   void setOnHistoryChangedCallback(OnHistoryChangedCallback? callback);
 
   void setOnUrlRequestCallback(OnUrlRequestCallback? callback);
 
+  /// Register a callback for messages posted by the page through
+  /// `window.webkit.messageHandlers.msgToNative.postMessage(message)`.
   void addOnWebMessageReceivedCallback(OnWebMessageReceivedCallback callback);
 
   void removeOnWebMessageReceivedCallback(
@@ -88,14 +60,10 @@ abstract class Webview {
   /// Close the web view window.
   void close();
 
-  /// evaluate JavaScript in the web view.
+  /// Evaluates JavaScript in the web view and returns the result encoded as
+  /// JSON.
   Future<String?> evaluateJavaScript(String javaScript);
 
-  /// post a web message as String to the top level document in this WebView
-  Future<void> postWebMessageAsString(String webMessage);
-
-  /// post a web message as JSON to the top level document in this WebView
-  Future<void> postWebMessageAsJson(String webMessage);
-
+  /// Returns the cookies that apply to the current page.
   Future<List<WebviewCookie>> getAllCookies();
 }
