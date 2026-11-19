@@ -48,27 +48,6 @@ gboolean on_load_failed_with_tls_errors(WebKitWebView *web_view,
   return TRUE;
 }
 
-// The web process is a separate process: when it dies the view simply stops
-// responding. Log it so that this kind of freeze can be told apart from a
-// problem in the plugin itself.
-void on_web_process_terminated(WebKitWebView *web_view,
-                               WebKitWebProcessTerminationReason reason,
-                               gpointer user_data) {
-  const char *reason_text = "terminated";
-  switch (reason) {
-    case WEBKIT_WEB_PROCESS_CRASHED:
-      reason_text = "crashed";
-      break;
-    case WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT:
-      reason_text = "exceeded memory limit";
-      break;
-    default:
-      break;
-  }
-  g_warning("[webview_window] web process %s, uri: %s", reason_text,
-            non_null(webkit_web_view_get_uri(web_view)));
-}
-
 FlValue *cookie_to_fl_value(SoupCookie *cookie) {
   FlValue *cookie_map = fl_value_new_map();
 
@@ -233,7 +212,7 @@ WebviewWindow::WebviewWindow(FlMethodChannel *method_channel, int64_t window_id,
   g_signal_connect(webview_, "load-failed-with-tls-errors",
                    G_CALLBACK(on_load_failed_with_tls_errors), nullptr);
   g_signal_connect(webview_, "web-process-terminated",
-                   G_CALLBACK(on_web_process_terminated), nullptr);
+                   G_CALLBACK(OnWebProcessTerminated), this);
   g_signal_connect(webview_, "create", G_CALLBACK(OnCreate), this);
   g_signal_connect(webview_, "load-changed", G_CALLBACK(OnLoadChanged), this);
   g_signal_connect(webview_, "decide-policy", G_CALLBACK(OnDecidePolicy), this);
@@ -378,6 +357,36 @@ void WebviewWindow::OnLoadChanged(WebKitWebView *web_view,
     default:
       break;
   }
+}
+
+// The web process is a separate process: when it dies the page is gone, and
+// no load or script message event will follow. Tell dart, so that callers
+// waiting on the page can fail instead of hanging.
+void WebviewWindow::OnWebProcessTerminated(
+    WebKitWebView *web_view, WebKitWebProcessTerminationReason reason,
+    gpointer user_data) {
+  auto *self = static_cast<WebviewWindow *>(user_data);
+
+  const char *reason_text = "other";
+  switch (reason) {
+    case WEBKIT_WEB_PROCESS_CRASHED:
+      reason_text = "crashed";
+      break;
+    case WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT:
+      reason_text = "exceededMemoryLimit";
+      break;
+    default:
+      break;
+  }
+  g_warning("[webview_window] web process terminated (%s), uri: %s",
+            reason_text, non_null(webkit_web_view_get_uri(web_view)));
+
+  g_autoptr(FlValue) args = fl_value_new_map();
+  fl_value_set_string_take(args, "id", fl_value_new_int(self->window_id_));
+  fl_value_set_string_take(args, "reason", fl_value_new_string(reason_text));
+  fl_method_channel_invoke_method(self->method_channel_,
+                                  "onWebProcessTerminated", args, nullptr,
+                                  nullptr, nullptr);
 }
 
 // Reports navigations to dart. The decision itself is left to WebKit.
