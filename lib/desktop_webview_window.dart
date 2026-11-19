@@ -81,6 +81,20 @@ class WebviewWindow {
       case "onJavascriptWebMessageReceived":
         webview.onWebMessageReceived(args['message'] as String);
         break;
+      case "onWebProcessTerminated":
+        webview.onWebProcessTerminated(_parseTerminationReason(args['reason']));
+        break;
+    }
+  }
+
+  static WebProcessTerminationReason _parseTerminationReason(Object? reason) {
+    switch (reason) {
+      case "crashed":
+        return WebProcessTerminationReason.crashed;
+      case "exceededMemoryLimit":
+        return WebProcessTerminationReason.exceededMemoryLimit;
+      default:
+        return WebProcessTerminationReason.other;
     }
   }
 

@@ -15,6 +15,25 @@ typedef OnUrlRequestCallback = bool Function(String url);
 /// [message] constains the webmessage
 typedef OnWebMessageReceivedCallback = void Function(String message);
 
+/// Why the web process behind a webview went away.
+enum WebProcessTerminationReason {
+  /// The web process crashed.
+  crashed,
+
+  /// The web process used more memory than WebKit allows.
+  exceededMemoryLimit,
+
+  /// Any other reason reported by WebKit.
+  other,
+}
+
+/// Callback when the web process of the webview terminates.
+///
+/// The page is gone and no further navigation or web message events will
+/// arrive for it. Treat this as a failure of whatever was waiting on the page.
+typedef OnWebProcessTerminatedCallback = void Function(
+    WebProcessTerminationReason reason);
+
 abstract class Webview {
   /// Completes when the webview window has been closed, either by [close] or
   /// by the user.
@@ -56,6 +75,11 @@ abstract class Webview {
 
   void removeOnWebMessageReceivedCallback(
       OnWebMessageReceivedCallback callback);
+
+  /// Register a callback that will be invoked when the web process of the
+  /// webview terminates. [isNavigating] is reset to false before it runs.
+  void setOnWebProcessTerminatedCallback(
+      OnWebProcessTerminatedCallback? callback);
 
   /// Close the web view window.
   void close();

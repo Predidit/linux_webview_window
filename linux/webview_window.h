@@ -73,6 +73,9 @@ class WebviewWindow final {
                              gpointer user_data);
   static void OnLoadChanged(WebKitWebView *web_view,
                             WebKitLoadEvent load_event, gpointer user_data);
+  static void OnWebProcessTerminated(WebKitWebView *web_view,
+                                     WebKitWebProcessTerminationReason reason,
+                                     gpointer user_data);
   static gboolean OnDecidePolicy(WebKitWebView *web_view,
                                  WebKitPolicyDecision *decision,
                                  WebKitPolicyDecisionType type,

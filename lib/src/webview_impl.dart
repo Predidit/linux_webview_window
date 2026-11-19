@@ -25,6 +25,8 @@ class WebviewImpl extends Webview {
 
   final Set<OnWebMessageReceivedCallback> _onWebMessageReceivedCallbacks = {};
 
+  OnWebProcessTerminatedCallback? _onWebProcessTerminated;
+
   // Events sent by the native window.
 
   void onClosed() {
@@ -55,6 +57,12 @@ class WebviewImpl extends Webview {
     for (final callback in _onWebMessageReceivedCallbacks) {
       callback(message);
     }
+  }
+
+  void onWebProcessTerminated(WebProcessTerminationReason reason) {
+    // The load in progress, if any, will never finish.
+    _isNavigating.value = false;
+    _onWebProcessTerminated?.call(reason);
   }
 
   // Webview interface.
@@ -129,6 +137,12 @@ class WebviewImpl extends Webview {
   void removeOnWebMessageReceivedCallback(
       OnWebMessageReceivedCallback callback) {
     _onWebMessageReceivedCallbacks.remove(callback);
+  }
+
+  @override
+  void setOnWebProcessTerminatedCallback(
+      OnWebProcessTerminatedCallback? callback) {
+    _onWebProcessTerminated = callback;
   }
 
   @override
